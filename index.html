@@ -1330,7 +1330,7 @@ function pickGen(i){
   else{selGen=CATALOG[selBrand][selModel][i];document.getElementById('genVal').textContent=selGen.n+' ('+selGen.y+')';document.getElementById('genVal').className='val'}
   closeS('genSheet');
 }
-function closeS(id){var el=document.getElementById(id);if(el)el.classList.remove('on')}
+function closeS(id){var el=document.getElementById(id);if(el)el.classList.remove('on');try{saveDraft()}catch(e){}}
 
 function resetForm(){
   selBrand='';selModel='';selGen=null;photos=[];
@@ -1377,7 +1377,7 @@ function processQueue(){
   if(!file) return;
   phBusy=true;
   shrinkImage(file).then(function(data){
-    if(photos.length<MAX_PHOTOS){ photos.push(data); drawPrevs(); }
+    if(photos.length<MAX_PHOTOS){ photos.push(data); drawPrevs(); saveDraft(); }
   }).catch(function(){
     toast('Не удалось прочитать фото. Попробуйте выбрать его ещё раз.');
   }).then(function(){ phBusy=false; processQueue(); });
@@ -1406,7 +1406,7 @@ function drawPrevs(){
     return '<div class="prev"><img src="'+s+'"><button type="button" class="rm" onclick="rmPh('+i+')">×</button></div>';
   }).join('');
 }
-function rmPh(i){ photos.splice(i,1); drawPrevs(); }
+function rmPh(i){ photos.splice(i,1); drawPrevs(); saveDraft(); }
 
 
 
@@ -1477,6 +1477,7 @@ function publish(){
     views:0, likes:0, date:'только что', cat:'cars'
   });
   save();
+  clearDraft();
   toast('Объявление опубликовано!');
   go('home');
 }
@@ -1570,10 +1571,47 @@ function closeLb(e){if(e&&e.target!==document.getElementById('lightbox')&&e.targ
 function lbPrev(){if(!lbPhotos.length)return;lbIdx=(lbIdx-1+lbPhotos.length)%lbPhotos.length;document.getElementById('lbImg').src=lbPhotos[lbIdx]}
 function lbNext(){if(!lbPhotos.length)return;lbIdx=(lbIdx+1)%lbPhotos.length;document.getElementById('lbImg').src=lbPhotos[lbIdx]}
 
+
+// ===== Черновик объявления: если Telegram перезагрузит мини-приложение
+// при открытии галереи, форма и выбранные фото восстановятся =====
+var DRAFT_KEY='am_draft';
+var DRAFT_IDS=['fYear','fPrice','fCity','fColor','fEng','fFuel','fTrans','fDrive','fMile','fComp','fDesc'];
+function saveDraft(){
+  try{
+    var d={t:Date.now(),f:{},selBrand:selBrand,selModel:selModel,selGen:selGen,photos:photos,
+      vals:{}};
+    DRAFT_IDS.forEach(function(id){var el=document.getElementById(id); if(el) d.f[id]=el.value;});
+    ['brandVal','modelVal','genVal'].forEach(function(id){var el=document.getElementById(id); if(el) d.vals[id]=[el.textContent,el.className];});
+    try{ localStorage.setItem(DRAFT_KEY,JSON.stringify(d)); }
+    catch(q){ d.photos=[]; localStorage.setItem(DRAFT_KEY,JSON.stringify(d)); }
+  }catch(e){}
+}
+function clearDraft(){ try{localStorage.removeItem(DRAFT_KEY)}catch(e){} }
+function restoreDraft(){
+  try{
+    var raw=localStorage.getItem(DRAFT_KEY); if(!raw) return;
+    var d=JSON.parse(raw);
+    if(!d || Date.now()-d.t>30*60*1000){ clearDraft(); return; }
+    DRAFT_IDS.forEach(function(id){var el=document.getElementById(id); if(el && d.f && d.f[id]!=null) el.value=d.f[id];});
+    selBrand=d.selBrand||''; selModel=d.selModel||''; selGen=d.selGen||null;
+    if(d.vals) Object.keys(d.vals).forEach(function(id){var el=document.getElementById(id); if(el){el.textContent=d.vals[id][0]; el.className=d.vals[id][1];}});
+    photos=d.photos||[]; drawPrevs();
+    if(d.resume) go('post');
+  }catch(e){}
+}
+document.addEventListener('input',function(e){ if(e.target && DRAFT_IDS.indexOf(e.target.id)>-1) saveDraft(); });
+document.addEventListener('change',function(e){ if(e.target && DRAFT_IDS.indexOf(e.target.id)>-1) saveDraft(); });
+
+(function(){
+  var inp=document.getElementById('phInForm'); if(!inp) return;
+  function mark(){ try{ saveDraft(); var d=JSON.parse(localStorage.getItem(DRAFT_KEY)); d.resume=true; d.t=Date.now(); localStorage.setItem(DRAFT_KEY,JSON.stringify(d)); }catch(e){} }
+  inp.addEventListener('click',mark); inp.addEventListener('touchstart',mark,{passive:true});
+})();
 // iOS touch fix: ensure taps on divs work
 document.addEventListener('touchstart', function(){}, {passive:true});
 try { renderHome(); } catch(e) { console.error(e); }
 try { bindPhotoPicker(); } catch(e) {}
+try { restoreDraft(); } catch(e) {}
 setTimeout(function(){ try{ saveUserToDatabase(); }catch(e){} }, 300);
 setTimeout(function(){try{saveUserToDatabase()}catch(e){}}, 100);
 </script>
