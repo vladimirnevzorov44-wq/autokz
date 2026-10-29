@@ -203,7 +203,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     <div class="loc" id="dCity"></div>
   </div>
   <div class="d-btns">
-    <button class="btn btn-b" onclick="toast('Сообщение (демо)')">💬 Написать</button>
+    <button class="btn btn-b" type="button" onclick="startChat(curId)">💬 Написать</button>
     <button class="btn btn-g" onclick="toast('Звонок (демо)')">📞 Позвонить</button>
   </div>
 </div>
@@ -322,7 +322,19 @@ toast('Очищено')}">🗑 Очистить все данные</div>
   </div>
 </div>
 <div class="scr" id="favs"><div class="hdr"><h1>Избранное</h1></div><div class="list" id="favList"></div><div class="empty" id="favEmpty"><div class="ic">♡</div><p>Пока пусто</p></div></div>
-<div class="scr" id="msgs"><div class="hdr"><h1>Сообщения</h1></div><div class="empty"><div class="ic">💬</div><p>Нет сообщений</p></div></div>
+<div class="scr" id="msgs">
+  <div class="hdr"><h1>Чаты</h1></div>
+  <div class="list" id="chatList"></div>
+  <div class="empty" id="chatEmpty"><div class="ic">💬</div><p>Нет чатов<br>Нажмите «Написать» в объявлении</p></div>
+</div>
+<div class="scr" id="chat">
+  <div class="hdr"><button class="ibtn" onclick="go('msgs')">←</button><h1 id="chatTitle">Чат</h1></div>
+  <div id="chatMsgs" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px"></div>
+  <div style="display:flex;gap:8px;padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--border)">
+    <input id="chatInput" placeholder="Сообщение..." style="flex:1;padding:12px;border:1.5px solid var(--border);border-radius:12px;font-size:15px;outline:none">
+    <button type="button" class="btn btn-b" style="flex:0;padding:12px 16px" onclick="sendChat()">➤</button>
+  </div>
+</div>
 <div class="scr" id="prof">
   <div class="hdr"><h1>Кабинет</h1></div>
   <div class="prof">
@@ -1177,38 +1189,43 @@ async function loadAdsFromCloud(){
 
 async function publishToCloud(ad){
   if(!supabase){
-    // локально только
-    ads.unshift(ad);
-    try{ localStorage.setItem('am_ads', JSON.stringify(ads)); }catch(e){}
     return {ok:true, local:true};
   }
-  var row = {
-    id: ad.id,
-    owner_telegram_id: myTelegramId || (tgUser && tgUser.id) || null,
-    title: ad.title,
-    year: ad.year,
-    price: ad.price,
-    city: ad.city,
-    gen: ad.gen,
-    color: ad.color,
-    eng: ad.eng,
-    fuel: ad.fuel,
-    trans: ad.trans,
-    drive: ad.drive,
-    mile: ad.mile,
-    comp: ad.comp,
-    description: ad.desc,
-    photos: ad.photos || [],
-    views: 0,
-    likes: 0,
-    cat: ad.cat || 'cars'
-  };
-  var res = await supabase.from('listings').insert([row]);
-  if(res.error){
-    console.error('publish', res.error);
-    return {ok:false, error: res.error.message || String(res.error)};
+  function rowOf(photos){
+    return {
+      id: ad.id,
+      owner_telegram_id: ad.owner_telegram_id || myTelegramId || (tgUser && tgUser.id) || null,
+      title: ad.title,
+      year: ad.year,
+      price: ad.price,
+      city: ad.city,
+      gen: ad.gen,
+      color: ad.color,
+      eng: ad.eng,
+      fuel: ad.fuel,
+      trans: ad.trans,
+      drive: ad.drive,
+      mile: ad.mile,
+      comp: ad.comp,
+      description: ad.desc,
+      photos: photos || [],
+      views: 0,
+      likes: 0,
+      cat: ad.cat || 'cars'
+    };
   }
-  return {ok:true};
+  try{
+    var res = await supabase.from('listings').insert([rowOf((ad.photos||[]).slice(0,3))]);
+    if(res.error){
+      // retry without photos
+      var res2 = await supabase.from('listings').insert([rowOf([])]);
+      if(res2.error) return {ok:false, error: res2.error.message||String(res2.error)};
+      return {ok:true, noPhotos:true};
+    }
+    return {ok:true};
+  }catch(e){
+    return {ok:false, error: e.message||String(e)};
+  }
 }
 
 async function deleteFromCloud(id){
@@ -1229,7 +1246,7 @@ function go(id){
   document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
   document.getElementById(id).classList.add('on');
   document.querySelectorAll('.nb').forEach(b=>b.classList.toggle('on',b.dataset.s===id));
-  if(id==='favs')renderFavs();if(id==='post'){ setTimeout(function(){ bindPhotoPicker(); }, 30); }if(id==='home')renderHome();
+  if(id==='favs')renderFavs();if(id==='post'){ setTimeout(function(){ bindPhotoPicker(); }, 30); }if(id==='home')renderHome();if(id==='msgs')renderChatList();
 }
 function nav(id){go(id)}
 function goBack(){go(prev)}
@@ -1274,6 +1291,87 @@ function deleteAd(id){
   });
 }
 function openSettings(){go('settings')}
+
+
+var chatPeer=null, chatListingId=null;
+var CHAT_KEY='am_chats';
+function loadChats(){ try{ return JSON.parse(localStorage.getItem(CHAT_KEY)||'{}'); }catch(e){ return {}; } }
+function saveChats(c){ try{ localStorage.setItem(CHAT_KEY, JSON.stringify(c)); }catch(e){} }
+function chatKey(listingId, peerId){ return String(listingId)+'_'+String(peerId||'seller'); }
+function startChat(listingId){
+  var ad = ads.find(function(a){ return a.id===listingId; });
+  if(!ad){ toast('Объявление не найдено'); return; }
+  chatListingId = listingId;
+  chatPeer = ad.owner_telegram_id || 'seller';
+  document.getElementById('chatTitle').textContent = ad.title || 'Чат';
+  renderChatMsgs();
+  go('chat');
+}
+function renderChatMsgs(){
+  var box=document.getElementById('chatMsgs'); if(!box) return;
+  var all=loadChats();
+  var key=chatKey(chatListingId, chatPeer);
+  var list=all[key]||[];
+  var me = myTelegramId || (tgUser && tgUser.id) || 'me';
+  box.innerHTML = list.length ? list.map(function(m){
+    var mine = String(m.from)===String(me);
+    return '<div style="align-self:'+(mine?'flex-end':'flex-start')+';max-width:80%;padding:10px 12px;border-radius:14px;background:'+(mine?'#2563eb':'#e2e8f0')+';color:'+(mine?'#fff':'#0f172a')+';font-size:14px">'+
+      escapeHtml(m.text)+
+      '<div style="font-size:10px;opacity:.7;margin-top:4px">'+escapeHtml(m.time||'')+'</div></div>';
+  }).join('') : '<div class="empty" style="padding:30px"><p>Напишите первое сообщение</p></div>';
+  box.scrollTop = box.scrollHeight;
+}
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function sendChat(){
+  var inp=document.getElementById('chatInput');
+  var text=(inp && inp.value||'').trim();
+  if(!text) return;
+  var me = myTelegramId || (tgUser && tgUser.id) || 'me';
+  var all=loadChats();
+  var key=chatKey(chatListingId, chatPeer);
+  if(!all[key]) all[key]=[];
+  all[key].push({from:me, text:text, time: new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})});
+  saveChats(all);
+  if(inp) inp.value='';
+  renderChatMsgs();
+  // пробуем в supabase
+  if(supabase){
+    supabase.from('messages').insert([{
+      listing_id: chatListingId,
+      from_id: me==='me'?null:me,
+      to_id: chatPeer==='seller'?null:chatPeer,
+      body: text
+    }]).then(function(){}).catch(function(){});
+  }
+}
+function renderChatList(){
+  var all=loadChats();
+  var keys=Object.keys(all);
+  var el=document.getElementById('chatList');
+  var empty=document.getElementById('chatEmpty');
+  if(!el) return;
+  if(!keys.length){ el.innerHTML=''; if(empty) empty.style.display='flex'; return; }
+  if(empty) empty.style.display='none';
+  el.innerHTML = keys.map(function(k){
+    var parts=k.split('_');
+    var lid=+parts[0];
+    var ad=ads.find(function(a){return a.id===lid;});
+    var last=(all[k]||[])[(all[k]||[]).length-1];
+    var title=ad?ad.title:('Объявление '+lid);
+    return '<div class="card" onclick="openChatKey(\''+k+'\')" style="padding:12px 14px;cursor:pointer">'
+      +'<div style="font-weight:700;font-size:14px">'+escapeHtml(title)+'</div>'
+      +'<div style="font-size:13px;color:var(--muted);margin-top:4px">'+(last?escapeHtml(last.text):'')+'</div></div>';
+  }).join('');
+}
+function openChatKey(k){
+  var parts=k.split('_');
+  chatListingId=+parts[0];
+  chatPeer=parts.slice(1).join('_');
+  var ad=ads.find(function(a){return a.id===chatListingId;});
+  document.getElementById('chatTitle').textContent = ad?ad.title:'Чат';
+  renderChatMsgs();
+  go('chat');
+}
 
 function renderHome(){
   const el=document.getElementById('homeList');
@@ -1447,62 +1545,53 @@ function resetForm(){
 function bindPhotoPicker(){
   var inp=document.getElementById('phInForm');
   if(!inp) return;
-  // always re-bind change safely
   inp.onchange = onPh;
-}
-var phQueue=[], phBusy=false;
-function shrinkImage(file){
-  // Уменьшаем фото до 1280px и JPEG: полноразмерные снимки (12+ Мп) в base64
-  // убивают память WebView и переполняют localStorage.
-  return new Promise(function(resolve,reject){
-    var MAX=1280;
-    function draw(src,w,h,done){
-      var k=Math.min(1,MAX/Math.max(w,h));
-      var cv=document.createElement('canvas');
-      cv.width=Math.max(1,Math.round(w*k)); cv.height=Math.max(1,Math.round(h*k));
-      cv.getContext('2d').drawImage(src,0,0,cv.width,cv.height);
-      var out=cv.toDataURL('image/jpeg',0.75);
-      cv.width=cv.height=0;
-      if(done) done();
-      resolve(out);
-    }
-    var url=URL.createObjectURL(file);
-    var img=new Image();
-    img.onload=function(){ try{ draw(img,img.naturalWidth,img.naturalHeight,function(){URL.revokeObjectURL(url)}); }catch(err){ URL.revokeObjectURL(url); reject(err); } };
-    img.onerror=function(){ URL.revokeObjectURL(url); reject(new Error('img')); };
-    img.src=url;
-  });
-}
-function processQueue(){
-  if(phBusy) return;
-  var file=phQueue.shift();
-  if(!file) return;
-  phBusy=true;
-  shrinkImage(file).then(function(data){
-    photos.push(data); drawPrevs(); saveDraft();
-  }).catch(function(){
-    var f=file;
-    try {
-      var r=new FileReader();
-      r.onload=function(ev){ photos.push(ev.target.result); drawPrevs(); try{saveDraft()}catch(e){}; phBusy=false; processQueue(); };
-      r.onerror=function(){ toast('Не удалось прочитать фото'); phBusy=false; processQueue(); };
-      r.readAsDataURL(f);
-      return;
-    } catch(err2){ toast('Не удалось прочитать фото'); }
-  }).then(function(){ if(phBusy){ phBusy=false; processQueue(); } });
 }
 function onPh(e){
   var ub=document.getElementById('uploadBox'); if(ub) ub.classList.remove('invalid');
   var pe=document.getElementById('phErr'); if(pe) pe.style.display='none';
-  var inp=e.target, files=inp.files;
-  if(!files || !files.length) return;
+  var files = e.target && e.target.files;
+  if(!files || !files.length){ toast('Файл не получен'); return; }
+  toast('Загрузка фото...');
+  var pending = files.length;
   for(var i=0;i<files.length;i++){
-    var file=files[i];
-    if(file.type && file.type.indexOf('image')!==0 && file.type!=='') continue;
-    phQueue.push(file);
+    (function(file){
+      var reader = new FileReader();
+      reader.onload = function(ev){
+        var data = ev.target.result;
+        // лёгкое сжатие через image, если возможно
+        shrinkDataUrl(data, function(out){
+          photos.push(out || data);
+          drawPrevs();
+          try{ saveDraft(); }catch(err){}
+          pending--;
+          if(pending<=0) toast('Фото добавлено: '+photos.length);
+        });
+      };
+      reader.onerror = function(){ pending--; toast('Ошибка чтения фото'); };
+      reader.readAsDataURL(file);
+    })(files[i]);
   }
-  processQueue();
-  setTimeout(function(){ try{ inp.value=''; }catch(_){} }, 300);
+  setTimeout(function(){ try{ e.target.value=''; }catch(err){} }, 500);
+}
+function shrinkDataUrl(dataUrl, cb){
+  try{
+    var img = new Image();
+    img.onload = function(){
+      try{
+        var MAX=1280, w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+        var k=Math.min(1, MAX/Math.max(w,h));
+        var cv=document.createElement('canvas');
+        cv.width=Math.max(1,Math.round(w*k)); cv.height=Math.max(1,Math.round(h*k));
+        cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+        var out=cv.toDataURL('image/jpeg',0.7);
+        cv.width=cv.height=0;
+        cb(out);
+      }catch(e){ cb(dataUrl); }
+    };
+    img.onerror = function(){ cb(dataUrl); };
+    img.src = dataUrl;
+  }catch(e){ cb(dataUrl); }
 }
 function drawPrevs(){
   var pe=document.getElementById('phErr'); if(pe) pe.style.display='none';
@@ -1512,7 +1601,7 @@ function drawPrevs(){
     return '<div class="prev"><img src="'+s+'"><button type="button" class="rm" onclick="rmPh('+i+')">×</button></div>';
   }).join('');
 }
-function rmPh(i){ photos.splice(i,1); drawPrevs(); saveDraft(); }
+function rmPh(i){ photos.splice(i,1); drawPrevs(); try{saveDraft()}catch(e){} }
 
 
 
@@ -1530,40 +1619,18 @@ function markInvalid(idOrEl){
   if(fld) fld.classList.add('invalid');
 }
 function publish(){
-  clearInvalid();
+  try{ clearInvalid(); }catch(e){}
   var yearEl=document.getElementById('fYear');
   var priceEl=document.getElementById('fPrice');
   var cityEl=document.getElementById('fCity');
   var year=+yearEl.value, price=+priceEl.value, city=cityEl.value;
-  var ok=true;
-  var firstBad=null;
+  var ok=true, firstBad=null;
 
-  if(!photos.length){
-    var ub=document.getElementById('uploadBox');
-    if(ub) ub.classList.add('invalid');
-    var pe=document.getElementById('phErr'); if(pe) pe.style.display='block';
-    ok=false; if(!firstBad) firstBad=ub;
-  }
-  if(!selBrand){
-    markInvalid('brandVal');
-    ok=false; if(!firstBad) firstBad=document.getElementById('brandVal');
-  }
-  if(!selModel){
-    markInvalid('modelVal');
-    ok=false; if(!firstBad) firstBad=document.getElementById('modelVal');
-  }
-  if(!year || year<1980 || year>new Date().getFullYear()){
-    markInvalid(yearEl);
-    ok=false; if(!firstBad) firstBad=yearEl;
-  }
-  if(!price || price<=0){
-    markInvalid(priceEl);
-    ok=false; if(!firstBad) firstBad=priceEl;
-  }
-  if(!city){
-    markInvalid(cityEl);
-    ok=false; if(!firstBad) firstBad=cityEl;
-  }
+  if(!selBrand){ markInvalid('brandVal'); ok=false; if(!firstBad) firstBad=document.getElementById('brandVal'); }
+  if(!selModel){ markInvalid('modelVal'); ok=false; if(!firstBad) firstBad=document.getElementById('modelVal'); }
+  if(!year || year<1980 || year>new Date().getFullYear()){ markInvalid(yearEl); ok=false; if(!firstBad) firstBad=yearEl; }
+  if(!price || price<=0){ markInvalid(priceEl); ok=false; if(!firstBad) firstBad=priceEl; }
+  if(!city){ markInvalid(cityEl); ok=false; if(!firstBad) firstBad=cityEl; }
 
   if(!ok){
     toast('Заполните поля, отмеченные красным');
@@ -1576,29 +1643,40 @@ function publish(){
     title: selBrand+' '+selModel,
     year: year, price: price, city: city,
     gen: selGen ? selGen.n : null,
-    color: document.getElementById('fColor').value || null,
-    eng: document.getElementById('fEng').value.trim() || null,
-    fuel: document.getElementById('fFuel').value,
-    trans: document.getElementById('fTrans').value,
-    drive: document.getElementById('fDrive').value,
-    mile: +document.getElementById('fMile').value || null,
-    comp: document.getElementById('fComp').value.trim(),
-    desc: document.getElementById('fDesc').value.trim(),
-    photos: photos.slice(0, 8),
+    color: (document.getElementById('fColor')||{}).value || null,
+    eng: ((document.getElementById('fEng')||{}).value||'').trim() || null,
+    fuel: (document.getElementById('fFuel')||{}).value,
+    trans: (document.getElementById('fTrans')||{}).value,
+    drive: (document.getElementById('fDrive')||{}).value,
+    mile: +(document.getElementById('fMile')||{}).value || null,
+    comp: ((document.getElementById('fComp')||{}).value||'').trim(),
+    desc: ((document.getElementById('fDesc')||{}).value||'').trim(),
+    photos: (photos||[]).slice(),
     views: 0, likes: 0, date: 'только что', cat: 'cars',
     owner_telegram_id: myTelegramId || (tgUser && tgUser.id) || null
   };
-  toast('Публикация...');
-  publishToCloud(ad).then(function(r){
-    if(!r || !r.ok){
-      toast('Ошибка: ' + ((r && r.error) || 'проверьте Supabase таблицу listings'));
-      return;
-    }
-    toast(r.local ? 'Только на этом телефоне' : 'Объявление опубликовано!');
-    try{ clearDraft(); }catch(e){}
-    photos=[]; try{ resetForm(); }catch(e){}
-    loadAdsFromCloud().then(function(){ go('home'); });
-  }).catch(function(err){ toast('Ошибка: '+(err.message||err)); });
+
+  // всегда сначала локально — объявление точно появится у тебя
+  ads.unshift(ad);
+  try{ localStorage.setItem('am_ads', JSON.stringify(ads)); }catch(e){}
+  try{ clearDraft(); }catch(e){}
+  photos=[]; try{ drawPrevs(); resetForm(); }catch(e){}
+
+  toast('Опубликовано');
+  go('home');
+  renderHome();
+
+  // параллельно в облако (чтобы видели другие)
+  if(typeof publishToCloud === 'function'){
+    publishToCloud(ad).then(function(r){
+      if(r && r.ok && !r.local){
+        loadAdsFromCloud();
+      } else if(r && !r.ok){
+        console.error('cloud publish', r.error);
+        // уже сохранено локально — не пугаем сильно
+      }
+    }).catch(function(err){ console.error(err); });
+  }
 }
 
 document.querySelectorAll('#cTrans .chip,#cDrive .chip,#cFuel .chip').forEach(c=>{
@@ -1731,6 +1809,7 @@ document.addEventListener('touchstart', function(){}, {passive:true});
 try { renderHome(); } catch(e) { console.error(e); }
 try { loadAdsFromCloud(); } catch(e) { console.error(e); }
 try { bindPhotoPicker(); } catch(e) {}
+try{ var ci=document.getElementById('chatInput'); if(ci) ci.addEventListener('keydown', function(e){ if(e.key==='Enter') sendChat(); }); }catch(e){}
 try { restoreDraft(); } catch(e) {}
 setTimeout(function(){ try{ saveUserToDatabase(); }catch(e){} }, 300);
 setTimeout(function(){try{saveUserToDatabase()}catch(e){}}, 100);
