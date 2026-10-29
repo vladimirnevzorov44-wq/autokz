@@ -314,7 +314,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   <div class="prof">
     <div class="menu">
       <div class="mi" onclick="toast('Язык: Русский')">🌐 Язык: Русский</div>
-      <div class="mi" onclick="if(confirm('Очистить все объявления?')){ads=[];favs=new Set();save();renderHome();
+      <div class="mi" onclick="if(confirm('Очистить избранное на этом устройстве?')){favs=new Set();save();renderHome();
 try{saveUserToDatabase()}catch(e){console.log(e)}
 toast('Очищено')}">🗑 Очистить все данные</div>
       <div class="mi" onclick="toast('АвтоМаркет v1.0')">ℹ️ О приложении</div>
@@ -393,6 +393,7 @@ function tgAlert(msg){
 function saveUserToDatabase() {
   try {
     if (tgUser) {
+      myTelegramId = tgUser.id;
       var nameEl = document.getElementById('profName');
       var subEl = document.getElementById('profSub');
       if (nameEl) nameEl.textContent = tgUser.first_name || tgUser.username || 'Пользователь';
@@ -1104,15 +1105,124 @@ Object.entries(EXTRA_MODELS).forEach(([brand,list])=>{
   });
 });
 
-let ads=JSON.parse(localStorage.getItem('am_ads')||'[]');
-let favs=new Set(JSON.parse(localStorage.getItem('am_favs')||'[]'));
-let photos=[],curId=null,prev='home';
-let selBrand='',selModel='',selGen=null;
-let fTrans=null,fDrive=null,fFuel=null;
-let fBrand='',fModel='',fGen='';
-let listCat='all';
 
-function save(){localStorage.setItem('am_ads',JSON.stringify(ads));localStorage.setItem('am_favs',JSON.stringify([...favs]))}
+let ads=[];
+let favs=new Set(JSON.parse(localStorage.getItem('am_favs')||'[]'));
+let myTelegramId = null;
+
+function save(){
+  // избранное по-прежнему локально
+  try{ localStorage.setItem('am_favs', JSON.stringify([...favs])); }catch(e){}
+}
+
+function rowToAd(row){
+  if(!row) return null;
+  return {
+    id: row.id,
+    title: row.title,
+    year: row.year,
+    price: +row.price,
+    city: row.city,
+    gen: row.gen,
+    color: row.color,
+    eng: row.eng,
+    fuel: row.fuel,
+    trans: row.trans,
+    drive: row.drive,
+    mile: row.mile,
+    comp: row.comp,
+    desc: row.description || row.desc || '',
+    photos: row.photos || [],
+    views: row.views || 0,
+    likes: row.likes || 0,
+    date: row.created_at ? formatDate(row.created_at) : (row.date || ''),
+    cat: row.cat || 'cars',
+    owner_telegram_id: row.owner_telegram_id || null
+  };
+}
+function formatDate(iso){
+  try{
+    var d=new Date(iso), now=new Date();
+    var diff=(now-d)/1000;
+    if(diff<60) return 'только что';
+    if(diff<3600) return Math.floor(diff/60)+' мин назад';
+    if(diff<86400) return Math.floor(diff/3600)+' ч назад';
+    return d.toLocaleDateString('ru-RU');
+  }catch(e){ return 'недавно'; }
+}
+
+async function loadAdsFromCloud(){
+  if(!supabase){
+    // без supabase — локальный кэш (только этот телефон)
+    try{ ads=JSON.parse(localStorage.getItem('am_ads')||'[]'); }catch(e){ ads=[]; }
+    renderHome();
+    return;
+  }
+  try{
+    var res = await supabase.from('listings').select('*').order('created_at', {ascending:false}).limit(200);
+    if(res.error){
+      console.error('load ads', res.error);
+      toast('Не удалось загрузить объявления');
+      try{ ads=JSON.parse(localStorage.getItem('am_ads')||'[]'); }catch(e){ ads=[]; }
+    } else {
+      ads = (res.data||[]).map(rowToAd).filter(Boolean);
+      try{ localStorage.setItem('am_ads', JSON.stringify(ads.map(function(a){ var c=Object.assign({},a); if(c.photos) c.photos=c.photos.slice(0,1); return c; }))); }catch(e){}
+    }
+  }catch(e){
+    console.error(e);
+    try{ ads=JSON.parse(localStorage.getItem('am_ads')||'[]'); }catch(e2){ ads=[]; }
+  }
+  renderHome();
+}
+
+async function publishToCloud(ad){
+  if(!supabase){
+    // локально только
+    ads.unshift(ad);
+    try{ localStorage.setItem('am_ads', JSON.stringify(ads)); }catch(e){}
+    return {ok:true, local:true};
+  }
+  var row = {
+    id: ad.id,
+    owner_telegram_id: myTelegramId || (tgUser && tgUser.id) || null,
+    title: ad.title,
+    year: ad.year,
+    price: ad.price,
+    city: ad.city,
+    gen: ad.gen,
+    color: ad.color,
+    eng: ad.eng,
+    fuel: ad.fuel,
+    trans: ad.trans,
+    drive: ad.drive,
+    mile: ad.mile,
+    comp: ad.comp,
+    description: ad.desc,
+    photos: ad.photos || [],
+    views: 0,
+    likes: 0,
+    cat: ad.cat || 'cars'
+  };
+  var res = await supabase.from('listings').insert([row]);
+  if(res.error){
+    console.error('publish', res.error);
+    return {ok:false, error: res.error.message || String(res.error)};
+  }
+  return {ok:true};
+}
+
+async function deleteFromCloud(id){
+  if(!supabase){
+    ads=ads.filter(function(a){return a.id!==id});
+    try{ localStorage.setItem('am_ads', JSON.stringify(ads)); }catch(e){}
+    return true;
+  }
+  var res = await supabase.from('listings').delete().eq('id', id);
+  if(res.error){ console.error(res.error); toast('Не удалось удалить'); return false; }
+  ads=ads.filter(function(a){return a.id!==id});
+  return true;
+}
+
 function money(n){return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ')+' ₸'}
 function toast(m){tgAlert(m)}
 function go(id){
@@ -1137,38 +1247,31 @@ function card(a){
 }
 
 function openMyAds(){
-  const list=ads; // all user ads in localStorage
-  const el=document.getElementById('myAdsList');
-  const empty=document.getElementById('myAdsEmpty');
-  if(!list.length){el.innerHTML='';empty.style.display='flex';go('myads');return}
+  var list = ads;
+  var uid = myTelegramId || (tgUser && tgUser.id);
+  if(uid) list = ads.filter(function(a){ return a.owner_telegram_id == uid; });
+  var el=document.getElementById('myAdsList');
+  var empty=document.getElementById('myAdsEmpty');
+  if(!list.length){ el.innerHTML=''; empty.style.display='flex'; go('myads'); return; }
   empty.style.display='none';
-  el.innerHTML=list.map(a=>{
-    const img=a.photos&&a.photos[0];
-    return `<div class="card">
-      <div class="card-b" onclick="openDetail(${a.id})">
-        <div class="card-img">${img?`<img src="${img}">`:'🚗'}</div>
-        <div class="card-i">
-          <div class="card-t">${a.title}${a.gen?' ('+a.gen+')':''}, ${a.year}</div>
-          <div class="card-p">${money(a.price)}</div>
-          <div class="card-m">${a.city||''}</div>
-        </div>
-      </div>
-      <div class="card-f" style="justify-content:space-between;align-items:center">
-        <span>👁 ${a.views||0} · ♡ ${a.likes||0}</span>
-        <button onclick="event.stopPropagation();deleteAd(${a.id})" style="background:#fee2e2;color:#dc2626;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer">🗑 Удалить</button>
-      </div>
-    </div>`;
+  el.innerHTML=list.map(function(a){
+    var img=a.photos&&a.photos[0];
+    return '<div class="card"><div class="card-b" onclick="openDetail('+a.id+')">'
+      +'<div class="card-img">'+(img?'<img src="'+img+'">':'🚗')+'</div>'
+      +'<div class="card-i"><div class="card-t">'+a.title+(a.gen?' ('+a.gen+')':'')+', '+a.year+'</div>'
+      +'<div class="card-p">'+money(a.price)+'</div><div class="card-m">'+(a.city||'')+'</div></div></div>'
+      +'<div class="card-f" style="justify-content:space-between;align-items:center">'
+      +'<span>👁 '+(a.views||0)+' · ♡ '+(a.likes||0)+'</span>'
+      +'<button type="button" onclick="event.stopPropagation();deleteAd('+a.id+')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600">🗑 Удалить</button>'
+      +'</div></div>';
   }).join('');
   go('myads');
 }
 function deleteAd(id){
-  if(!confirm('Удалить объявление?'))return;
-  ads=ads.filter(a=>a.id!==id);
-  favs.delete(id);
-  save();
-  openMyAds();
-  renderHome();
-  toast('Удалено');
+  if(!confirm('Удалить объявление?')) return;
+  deleteFromCloud(id).then(function(ok){
+    if(ok){ openMyAds(); renderHome(); toast('Удалено'); }
+  });
 }
 function openSettings(){go('settings')}
 
@@ -1468,28 +1571,34 @@ function publish(){
     return;
   }
 
-  ads.unshift({
-    id:Date.now(),
-    title:selBrand+' '+selModel,
-    year:year, price:price, city:city,
-    gen:selGen?selGen.n:null,
-    color:document.getElementById('fColor').value||null,
-    eng:document.getElementById('fEng').value.trim()||null,
-    fuel:document.getElementById('fFuel').value,
-    trans:document.getElementById('fTrans').value,
-    drive:document.getElementById('fDrive').value,
-    mile:+document.getElementById('fMile').value||null,
-    comp:document.getElementById('fComp').value.trim(),
-    desc:document.getElementById('fDesc').value.trim(),
-    photos:photos.slice(),
-    views:0, likes:0, date:'только что', cat:'cars'
-  });
-  save();
-  try{clearDraft();}catch(e){}
-  photos=[];
-  try{resetForm();}catch(e){}
-  toast('Объявление опубликовано!');
-  go('home');
+  var ad = {
+    id: Date.now(),
+    title: selBrand+' '+selModel,
+    year: year, price: price, city: city,
+    gen: selGen ? selGen.n : null,
+    color: document.getElementById('fColor').value || null,
+    eng: document.getElementById('fEng').value.trim() || null,
+    fuel: document.getElementById('fFuel').value,
+    trans: document.getElementById('fTrans').value,
+    drive: document.getElementById('fDrive').value,
+    mile: +document.getElementById('fMile').value || null,
+    comp: document.getElementById('fComp').value.trim(),
+    desc: document.getElementById('fDesc').value.trim(),
+    photos: photos.slice(0, 8),
+    views: 0, likes: 0, date: 'только что', cat: 'cars',
+    owner_telegram_id: myTelegramId || (tgUser && tgUser.id) || null
+  };
+  toast('Публикация...');
+  publishToCloud(ad).then(function(r){
+    if(!r || !r.ok){
+      toast('Ошибка: ' + ((r && r.error) || 'проверьте Supabase таблицу listings'));
+      return;
+    }
+    toast(r.local ? 'Только на этом телефоне' : 'Объявление опубликовано!');
+    try{ clearDraft(); }catch(e){}
+    photos=[]; try{ resetForm(); }catch(e){}
+    loadAdsFromCloud().then(function(){ go('home'); });
+  }).catch(function(err){ toast('Ошибка: '+(err.message||err)); });
 }
 
 document.querySelectorAll('#cTrans .chip,#cDrive .chip,#cFuel .chip').forEach(c=>{
@@ -1620,6 +1729,7 @@ document.addEventListener('change',function(e){ if(e.target && DRAFT_IDS.indexOf
 // iOS touch fix: ensure taps on divs work
 document.addEventListener('touchstart', function(){}, {passive:true});
 try { renderHome(); } catch(e) { console.error(e); }
+try { loadAdsFromCloud(); } catch(e) { console.error(e); }
 try { bindPhotoPicker(); } catch(e) {}
 try { restoreDraft(); } catch(e) {}
 setTimeout(function(){ try{ saveUserToDatabase(); }catch(e){} }, 300);
