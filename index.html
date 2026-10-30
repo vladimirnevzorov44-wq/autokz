@@ -1199,9 +1199,8 @@ async function publishToCloud(ad){
   if(!supabase){
     return {ok:true, local:true};
   }
-  function rowOf(photos){
-    return {
-      id: ad.id,
+  function rowOf(photos, includeId){
+    var row = {
       owner_telegram_id: ad.owner_telegram_id || myTelegramId || (tgUser && tgUser.id) || null,
       title: ad.title,
       year: ad.year,
@@ -1221,16 +1220,27 @@ async function publishToCloud(ad){
       likes: 0,
       cat: ad.cat || 'cars'
     };
+    // id только если таблица ждёт числовой id; для uuid лучше не слать
+    if(includeId && ad.id != null) row.id = ad.id;
+    return row;
   }
+  // максимум 2 сжатых фото в облако (base64 тяжелый)
+  var cloudPhotos = (ad.photos||[]).slice(0, 2);
   try{
-    var res = await supabase.from('listings').insert([rowOf((ad.photos||[]).slice(0,3))]);
+    // 1) без id — пусть БД сама сгенерирует (uuid / serial)
+    var res = await supabase.from('listings').insert([rowOf(cloudPhotos, false)]).select('*').limit(1);
     if(res.error){
-      // retry without photos
-      var res2 = await supabase.from('listings').insert([rowOf([])]);
-      if(res2.error) return {ok:false, error: res2.error.message||String(res2.error)};
-      return {ok:true, noPhotos:true};
+      // 2) retry без фото
+      var res2 = await supabase.from('listings').insert([rowOf([], false)]).select('*').limit(1);
+      if(res2.error){
+        // 3) retry со старым числовым id (на случай если id = bigint)
+        var res3 = await supabase.from('listings').insert([rowOf([], true)]).select('*').limit(1);
+        if(res3.error) return {ok:false, error: res3.error.message || res2.error.message || String(res3.error)};
+        return {ok:true, noPhotos:true, row: (res3.data && res3.data[0]) || null};
+      }
+      return {ok:true, noPhotos:true, row: (res2.data && res2.data[0]) || null};
     }
-    return {ok:true};
+    return {ok:true, row: (res.data && res.data[0]) || null};
   }catch(e){
     return {ok:false, error: e.message||String(e)};
   }
@@ -1238,14 +1248,38 @@ async function publishToCloud(ad){
 
 async function deleteFromCloud(id){
   if(!supabase){
-    ads=ads.filter(function(a){return a.id!==id});
-    try{ localStorage.setItem('am_ads', JSON.stringify(ads)); }catch(e){}
+    ads = (ads||[]).filter(function(a){ return String(a.id) !== String(id); });
+    try{ localStorage.setItem('am_ads', JSON.stringify(ads.map(function(a){
+      var x={}; for(var k in a) if(k!=='photos') x[k]=a[k];
+      x.photos = (a.photos&&a.photos[0]) ? [String(a.photos[0]).slice(0,200000)] : [];
+      return x;
+    }))); }catch(e){}
     return true;
   }
-  var res = await supabase.from('listings').delete().eq('id', id);
-  if(res.error){ console.error(res.error); toast('Не удалось удалить'); return false; }
-  ads=ads.filter(function(a){return a.id!==id});
-  return true;
+  try{
+    // пробуем и число, и строку (uuid)
+    var res = await supabase.from('listings').delete().eq('id', id);
+    if(res.error){
+      var res2 = await supabase.from('listings').delete().eq('id', String(id));
+      if(res2.error){
+        console.error(res.error, res2.error);
+        toast('Не удалось удалить: ' + (res2.error.message || res.error.message || 'ошибка'));
+        return false;
+      }
+    }
+    ads = (ads||[]).filter(function(a){ return String(a.id) !== String(id); });
+    try{
+      localStorage.setItem('am_ads', JSON.stringify(ads.map(function(a){
+        var x={}; for(var k in a) if(k!=='photos') x[k]=a[k];
+        x.photos = (a.photos&&a.photos[0]) ? [String(a.photos[0]).slice(0,200000)] : [];
+        return x;
+      })));
+    }catch(e){}
+    return true;
+  }catch(e){
+    toast('Ошибка удаления: ' + (e.message||e));
+    return false;
+  }
 }
 
 function money(n){return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ')+' ₸'}
@@ -1263,7 +1297,8 @@ function card(a){
   const img=a.photos?.[0];
   const meta=[a.eng?a.eng+' л':null,a.fuel,a.trans,a.color].filter(Boolean).join(' • ');
   const sub=a.gen?` (${a.gen})`:'';
-  return `<div class="card" onclick="openDetail(${a.id})"><div class="card-b">
+  const idJs = JSON.stringify(a.id);
+  return `<div class="card" onclick='openDetail(${idJs})'><div class="card-b">
     <div class="card-img">${img?`<img src="${img}">`:'🚗'}</div>
     <div class="card-i"><div class="card-t">${a.title}${sub}, ${a.year}</div>
     <div class="card-p">${money(a.price)}</div><div class="card-m">${meta}</div>
@@ -1281,22 +1316,35 @@ function openMyAds(){
   empty.style.display='none';
   el.innerHTML=list.map(function(a){
     var img=a.photos&&a.photos[0];
-    return '<div class="card"><div class="card-b" onclick="openDetail('+a.id+')">'
+    var idJs = JSON.stringify(a.id);
+    return '<div class="card"><div class="card-b" onclick=\'openDetail('+idJs+')\'>'
       +'<div class="card-img">'+(img?'<img src="'+img+'">':'🚗')+'</div>'
       +'<div class="card-i"><div class="card-t">'+a.title+(a.gen?' ('+a.gen+')':'')+', '+a.year+'</div>'
       +'<div class="card-p">'+money(a.price)+'</div><div class="card-m">'+(a.city||'')+'</div></div></div>'
       +'<div class="card-f" style="justify-content:space-between;align-items:center">'
       +'<span>👁 '+(a.views||0)+' · ♡ '+(a.likes||0)+'</span>'
-      +'<button type="button" onclick="event.stopPropagation();deleteAd('+a.id+')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600">🗑 Удалить</button>'
+      +'<button type="button" onclick=\'event.stopPropagation();deleteAd('+idJs+')\' style="background:#fee2e2;color:#dc2626;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600">🗑 Удалить</button>'
       +'</div></div>';
   }).join('');
   go('myads');
 }
 function deleteAd(id){
-  if(!confirm('Удалить объявление?')) return;
-  deleteFromCloud(id).then(function(ok){
-    if(ok){ openMyAds(); renderHome(); toast('Удалено'); }
-  });
+  function doDelete(){
+    deleteFromCloud(id).then(function(ok){
+      if(ok){
+        openMyAds();
+        try{ renderHome(); }catch(e){}
+        toast('Удалено');
+      }
+    });
+  }
+  try{
+    if(tg && tg.showConfirm){
+      tg.showConfirm('Удалить объявление?', function(ok){ if(ok) doDelete(); });
+      return;
+    }
+  }catch(e){}
+  if(window.confirm('Удалить объявление?')) doDelete();
 }
 function openSettings(){go('settings')}
 
@@ -1307,7 +1355,7 @@ function loadChats(){ try{ return JSON.parse(localStorage.getItem(CHAT_KEY)||'{}
 function saveChats(c){ try{ localStorage.setItem(CHAT_KEY, JSON.stringify(c)); }catch(e){} }
 function chatKey(listingId, peerId){ return String(listingId)+'_'+String(peerId||'seller'); }
 function startChat(listingId){
-  var ad = ads.find(function(a){ return a.id===listingId; });
+  var ad = ads.find(function(a){ return String(a.id)===String(listingId); });
   if(!ad){ toast('Объявление не найдено'); return; }
   chatListingId = listingId;
   chatPeer = ad.owner_telegram_id || 'seller';
@@ -1362,20 +1410,20 @@ function renderChatList(){
   if(empty) empty.style.display='none';
   el.innerHTML = keys.map(function(k){
     var parts=k.split('_');
-    var lid=+parts[0];
-    var ad=ads.find(function(a){return a.id===lid;});
+    var lid=parts[0];
+    var ad=ads.find(function(a){return String(a.id)===String(lid);});
     var last=(all[k]||[])[(all[k]||[]).length-1];
     var title=ad?ad.title:('Объявление '+lid);
-    return '<div class="card" onclick="openChatKey(\''+k+'\')" style="padding:12px 14px;cursor:pointer">'
+    return '<div class="card" onclick="openChatKey(\''+k.replace(/'/g,"\\'")+'\')" style="padding:12px 14px;cursor:pointer">'
       +'<div style="font-weight:700;font-size:14px">'+escapeHtml(title)+'</div>'
       +'<div style="font-size:13px;color:var(--muted);margin-top:4px">'+(last?escapeHtml(last.text):'')+'</div></div>';
   }).join('');
 }
 function openChatKey(k){
   var parts=k.split('_');
-  chatListingId=+parts[0];
+  chatListingId=parts[0];
   chatPeer=parts.slice(1).join('_');
-  var ad=ads.find(function(a){return a.id===chatListingId;});
+  var ad=ads.find(function(a){return String(a.id)===String(chatListingId);});
   document.getElementById('chatTitle').textContent = ad?ad.title:'Чат';
   renderChatMsgs();
   go('chat');
@@ -1419,7 +1467,7 @@ function doSearch(){
   renderList(list);
 }
 function openDetail(id){
-  const a=ads.find(x=>x.id===id);if(!a)return;
+  const a=ads.find(x=>String(x.id)===String(id));if(!a)return;
   curId=id;prev=document.querySelector('.scr.on').id;a.views=(a.views||0)+1;save();
   document.getElementById('dTitle').textContent=`${a.title}${a.gen?' ('+a.gen+')':''}, ${a.year}`;
   document.getElementById('dPrice').textContent=money(a.price);
@@ -1429,11 +1477,17 @@ function openDetail(id){
   document.getElementById('dSpecs').innerHTML=specs.map(([l,v])=>`<div class="spec"><label>${l}</label><span>${v}</span></div>`).join('');
   const cb=document.getElementById('dCompB');
   if(a.comp?.trim()){document.getElementById('dComp').textContent=a.comp;cb.style.display='block'}else cb.style.display='none';
-  document.getElementById('dPhoto').innerHTML=a.photos?.[0]?`<img src="${a.photos[0]}" onclick="openLb(ads.find(x=>x.id===${a.id}).photos,0)">`:`<div style="height:100%;display:flex;align-items:center;justify-content:center;font-size:60px;color:#64748b">🚗</div>`;
-  document.getElementById('favB').textContent=favs.has(id)?'❤️':'♡';
+  document.getElementById('dPhoto').innerHTML=a.photos?.[0]?`<img src="${a.photos[0]}" onclick="openLb((ads.find(x=>String(x.id)===String(curId))||{}).photos,0)">`:`<div style="height:100%;display:flex;align-items:center;justify-content:center;font-size:60px;color:#64748b">🚗</div>`;
+  document.getElementById('favB').textContent=favs.has(String(id))||favs.has(id)?'❤️':'♡';
   go('detail');
 }
-function togFav(){favs.has(curId)?favs.delete(curId):favs.add(curId);save();document.getElementById('favB').textContent=favs.has(curId)?'❤️':'♡'}
+function togFav(){
+  var key = String(curId);
+  if(favs.has(key) || favs.has(curId)){ favs.delete(key); favs.delete(curId); }
+  else favs.add(key);
+  save();
+  document.getElementById('favB').textContent=(favs.has(key)||favs.has(curId))?'❤️':'♡';
+}
 function renderFavs(){
   const list=ads.filter(a=>favs.has(a.id));
   document.getElementById('favList').innerHTML=list.map(card).join('');
@@ -1680,7 +1734,7 @@ function publish(){
       // без тяжёлых фото в localStorage — квота
       var light = ads.map(function(a){
         var x={}; for(var k in a) if(k!=='photos') x[k]=a[k];
-        x.photos = (a.photos&&a.photos[0]) ? [a.photos[0].slice(0,500000)] : [];
+        x.photos = (a.photos&&a.photos[0]) ? [String(a.photos[0]).slice(0,300000)] : [];
         return x;
       });
       localStorage.setItem('am_ads', JSON.stringify(light));
@@ -1689,17 +1743,42 @@ function publish(){
     photos = [];
     try { drawPrevs(); } catch(e) {}
     try { resetForm(); } catch(e) {}
+    try { clearDraft(); } catch(e) {}
 
     go('home');
     try { renderHome(); } catch(e) { console.error(e); }
-    alert('Объявление опубликовано');
 
     if(typeof publishToCloud === 'function'){
+      toast('Публикуем…');
       publishToCloud(ad).then(function(r){
         if(r && r.ok && !r.local){
           ad._local = false;
+          if(r.row && r.row.id != null){
+            // подменяем локальный id на id из БД, чтобы удаление работало
+            var oldId = ad.id;
+            ad.id = r.row.id;
+            if(r.row.photos && r.row.photos.length) ad.photos = r.row.photos;
+            // обновить в массиве ads
+            for(var i=0;i<(ads||[]).length;i++){
+              if(ads[i] && String(ads[i].id)===String(oldId)){ ads[i]=ad; break; }
+            }
+          }
+          try{ renderHome(); }catch(e){}
+          if(r.noPhotos) toast('Опубликовано (без фото — слишком большие)');
+          else toast('Опубликовано — видно всем');
+        } else if(r && r.local){
+          toast('Сохранено локально (нет облака)');
+        } else {
+          var msg = (r && r.error) ? r.error : 'ошибка синхронизации';
+          toast('Локально сохранено. Облако: ' + msg);
+          console.error('publishToCloud', r);
         }
-      }).catch(function(){});
+      }).catch(function(err){
+        toast('Локально сохранено. Облако недоступно');
+        console.error(err);
+      });
+    } else {
+      toast('Объявление сохранено локально');
     }
   } catch(err) {
     alert('Ошибка: ' + (err && err.message ? err.message : err));
