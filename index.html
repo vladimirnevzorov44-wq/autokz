@@ -9,7 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:rgba(0,0,0,0.1);touch-action:manipulation}
-:root{--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--bg:#0b1220;--card:#151d2e;--text:#e8eef9;--muted:#8b9bb4;--border:#243044;--r:16px}
+:root{--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--bg:#0a1220;--card:#121c2e;--text:#eef3fb;--muted:#7f8da3;--border:#1c2740;--r:16px}
 html,body{width:100%;height:100%;height:100dvh;overflow:hidden}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);-webkit-user-select:none;user-select:none}
 #app{width:100%;height:100%;height:100dvh;background:var(--bg);position:relative;display:flex;flex-direction:column;overflow:hidden}
@@ -192,12 +192,38 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .gen-carousel .gc-track::-webkit-scrollbar{display:none}
 .gen-carousel .gc-slide{min-width:100%;scroll-snap-align:center;display:flex;align-items:center;justify-content:center;padding:20px}
 .gen-carousel .gc-slide img{max-width:92%;max-height:48vh;object-fit:contain;border-radius:12px}
-.gen-carousel .gc-placeholder{width:70%;height:40vh;border-radius:16px;background:linear-gradient(145deg,#151d2e,#0d1422);border:1px solid #243044;display:flex;align-items:center;justify-content:center;font-size:64px;opacity:.5}
+.gen-carousel .gc-placeholder{width:78%;height:42vh;border-radius:20px;background:#2a3344;border:none}
 .gen-carousel .gc-dots{display:flex;justify-content:center;gap:6px;padding:8px}
 .gen-carousel .gc-dot{width:7px;height:7px;border-radius:50%;background:#334155}
 .gen-carousel .gc-dot.on{background:#3b82f6;width:18px;border-radius:4px}
 .gen-carousel .gc-bot{padding:14px 16px max(16px,env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:10px}
 .gen-carousel .gc-bot .btn{border-radius:14px;padding:14px}
+
+
+.home-hdr{background:transparent;border:none;padding:8px 14px 4px}
+.brand-row{display:flex;align-items:center;gap:10px}
+.brand-av{width:40px;height:40px;border-radius:50%;background:linear-gradient(145deg,#3b82f6,#1d4ed8);color:#fff;font-weight:800;font-size:18px;display:flex;align-items:center;justify-content:center}
+.brand-name{font-size:17px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:6px}
+.brand-sub{font-size:11px;color:var(--muted);margin-top:1px}
+.hdr-actions{display:flex;gap:8px}
+.icon-btn{width:40px;height:40px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:16px;display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer}
+.bell-dot{position:absolute;top:8px;right:9px;width:7px;height:7px;background:var(--blue);border-radius:50%}
+.home-search{margin:8px 14px;padding:13px 16px;background:#0d1628;border:1px solid var(--border);border-radius:14px}
+.home-search input{width:100%;border:none;outline:none;background:transparent;color:var(--muted);font-size:15px}
+.home-cats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:6px 14px 10px;background:transparent}
+.home-cats .cat{padding:12px 4px;border-radius:16px;background:var(--card);border:1.5px solid var(--border);gap:8px}
+.home-cats .cat.on{border-color:var(--blue);box-shadow:0 0 0 1px rgba(59,130,246,.25)}
+.home-cats .cat i,.home-cats .ci{width:auto;height:auto;background:transparent;border:none;font-size:22px;margin-bottom:2px}
+.home-cats .cat span{font-size:12px;font-weight:600;color:var(--text)}
+.filter-chips{display:flex;align-items:center;gap:8px;padding:0 14px 10px;flex-wrap:wrap}
+.chip-label{font-size:13px;color:var(--muted)}
+.fchip{font-size:12px;font-weight:600;padding:6px 12px;border-radius:20px;background:var(--card);border:1px solid var(--border);color:var(--text)}
+.bnav{background:#0c1524;border-top:1px solid var(--border)}
+.nb{color:#6b7a94}.nb.on{color:var(--blue)}
+.np{background:var(--blue);box-shadow:0 6px 20px rgba(37,99,235,.5)}
+.card{background:var(--card);border-radius:18px;border:1px solid var(--border);overflow:hidden}
+.card-img{height:210px;background:#0a101c}
+.sec-h h2{font-size:17px;font-weight:700}
 
 </style>
 </head>
@@ -205,21 +231,32 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <div id="app">
 <div id="screens">
 <div class="scr on" id="home">
-  <div class="hdr">
-    <div class="logo">Autokz <span class="logo-badge">KZ</span></div>
-    <div style="display:flex;gap:8px">
-      <button class="ibtn" onclick="toast('Уведомления')">🔔</button>
-      <button class="ibtn" onclick="go('filter')">⚙️</button>
+  <div class="hdr home-hdr">
+    <div class="brand-row">
+      <div class="brand-av">A</div>
+      <div>
+        <div class="brand-name">Autokz <span class="logo-badge">KZ</span></div>
+        <div class="brand-sub">мини-приложение</div>
+      </div>
+    </div>
+    <div class="hdr-actions">
+      <button class="icon-btn" onclick="toast('Уведомления')"><span class="bell-dot"></span>🔔</button>
+      <button class="icon-btn" onclick="go('filter')">🎚️</button>
     </div>
   </div>
-  <div class="search" style="margin-top:4px" onclick="openList('all')"><span style="opacity:.6">🔍</span><input placeholder="Марка, модель или кузов..." readonly style="pointer-events:none;color:var(--muted)"></div>
-  <div class="cats">
-    <div class="cat" onclick="openList('all')"><i>🚗</i><span>Легковые</span></div>
-    <div class="cat" onclick="openList('moto')"><i>⚡</i><span>Мото</span></div>
-    <div class="cat" onclick="openList('new')"><i>✨</i><span>Новые</span></div>
-    <div class="cat" onclick="openList('comm')"><i>🚚</i><span>Коммерч.</span></div>
+  <div class="search home-search" onclick="openList('all')"><input placeholder="Марка, модель или кузов..." readonly style="pointer-events:none"></div>
+  <div class="cats home-cats">
+    <div class="cat on" onclick="openList('all')"><i class="ci">🚗</i><span>Легковые</span></div>
+    <div class="cat" onclick="openList('moto')"><i class="ci">⚡</i><span>Мото</span></div>
+    <div class="cat" onclick="openList('new')"><i class="ci">✨</i><span>Новые</span></div>
+    <div class="cat" onclick="openList('comm')"><i class="ci">🚚</i><span>Коммерч.</span></div>
   </div>
-  <div class="sec"><div class="sec-h"><h2>Объявления <span id="homeCount" class="count-pill">0</span></h2><button class="tbtn" onclick="openList('all')">Параметры ›</button></div></div>
+  <div class="filter-chips" id="homeChips">
+    <span class="chip-label">Фильтры:</span>
+    <span class="fchip">Алматы ×</span>
+    <span class="fchip">Все года ×</span>
+  </div>
+  <div class="sec"><div class="sec-h"><h2>Объявления <span id="homeCount" class="count-pill">0</span></h2><button class="tbtn" onclick="go('filter')">Параметры ›</button></div></div>
   <div class="list" id="homeList"></div>
 </div>
 <div class="scr" id="list">
@@ -1380,7 +1417,7 @@ function go(id){
   document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));
   document.getElementById(id).classList.add('on');
   document.querySelectorAll('.nb').forEach(b=>b.classList.toggle('on',b.dataset.s===id));
-  if(id==='favs')renderFavs();if(id==='post'){ setTimeout(function(){ bindPhotoPicker(); }, 30); }if(id==='home')renderHome();if(id==='msgs')renderChatList();
+  if(id==='favs')renderFavs();if(id==='post'){ setTimeout(function(){ bindPhotoPicker(); }, 30); }if(id==='home')renderHome();if(id==='msgs'){ window._chatSynced=false; window._chatSyncing=false; renderChatList(); }
 }
 function nav(id){go(id)}
 function goBack(){go(prev)}
@@ -1552,15 +1589,23 @@ function sendChat(){
   saveChats(all);
   if(inp) inp.value='';
   renderChatMsgs();
-  if(initSupabase()){
-    sbClient.from('messages').insert([{
-      listing_id: chatListingId,
-      from_id: me==='me'?null:me,
-      to_id: chatPeer==='seller'?null:chatPeer,
-      body: text
-    }]).then(function(){}).catch(function(){});
-  }
+  try{
+    var client = initSupabase();
+    if(client && typeof client.from==='function'){
+      var msgId = Date.now();
+      client.from('messages').insert([{
+        id: msgId,
+        listing_id: chatListingId,
+        from_id: me==='me'?null:me,
+        to_id: (chatPeer==='seller'||chatPeer==null)?null:chatPeer,
+        body: text
+      }]).then(function(res){
+        if(res && res.error) console.error('msg insert', res.error);
+      }).catch(function(e){ console.error(e); });
+    }
+  }catch(e){ console.error(e); }
 }
+
 function setChatTab(tab){
   chatTab = tab === 'sell' ? 'sell' : 'buy';
   document.querySelectorAll('#chatTabs .chat-tab').forEach(function(b){
@@ -1568,7 +1613,51 @@ function setChatTab(tab){
   });
   renderChatList();
 }
+
+function syncChatsFromCloud(cb){
+  var client = initSupabase();
+  var me = myId();
+  if(!client || typeof client.from!=='function' || !me || me==='me'){ if(cb) cb(); return; }
+  client.from('messages').select('*').or('from_id.eq.'+me+',to_id.eq.'+me).order('id',{ascending:true}).limit(300)
+    .then(function(res){
+      if(res.error || !res.data){ if(cb) cb(); return; }
+      var all = loadChats();
+      var byListing = {};
+      res.data.forEach(function(r){
+        var lid = String(r.listing_id);
+        if(!byListing[lid]) byListing[lid] = [];
+        byListing[lid].push({from: r.from_id, text: r.body||'', time: r.created_at ? new Date(r.created_at).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}) : ''});
+      });
+      Object.keys(byListing).forEach(function(lid){
+        var ad = ads.find(function(a){ return String(a.id)===lid; });
+        var peer = ad ? (ad.owner_telegram_id || 'seller') : 'seller';
+        // if I am owner, peer is buyer from first non-me message
+        var me2 = myId();
+        if(ad && String(ad.owner_telegram_id)===String(me2)){
+          var other = byListing[lid].find(function(m){ return m.from && String(m.from)!==String(me2); });
+          peer = other ? other.from : 'buyer';
+        }
+        var key = chatKey(lid, peer);
+        var role = detectChatRole(lid);
+        setThread(all, key, role, byListing[lid]);
+      });
+      saveChats(all);
+      if(cb) cb();
+    }).catch(function(){ if(cb) cb(); });
+}
+
 function renderChatList(){
+  // сначала синхронизация с облаком (один раз за открытие экрана)
+  if(!window._chatSyncing){
+    window._chatSyncing = true;
+    syncChatsFromCloud(function(){
+      window._chatSyncing = false;
+      window._chatSynced = true;
+      renderChatList();
+    });
+    return;
+  }
+  if(window._chatSyncing && !window._chatSynced) return;
   var all=loadChats();
   var keys=Object.keys(all);
   var el=document.getElementById('chatList');
@@ -1805,8 +1894,7 @@ function openGenCarousel(gens, title, isFilter){
   var track = document.getElementById('gcTrack');
   var dots = document.getElementById('gcDots');
   track.innerHTML = _gcGens.map(function(g,i){
-    var img = g.p ? '<img src="'+g.p+'" alt="">' : '<div class="gc-placeholder">🚗</div>';
-    return '<div class="gc-slide" data-i="'+i+'">'+img+'</div>';
+    return '<div class="gc-slide" data-i="'+i+'"><div class="gc-placeholder"></div></div>';
   }).join('');
   dots.innerHTML = _gcGens.map(function(_,i){ return '<div class="gc-dot'+(i===0?' on':'')+'"></div>'; }).join('');
   updateGcHeader(0);
