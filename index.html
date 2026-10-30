@@ -9,13 +9,13 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:rgba(0,0,0,0.1);touch-action:manipulation}
-:root{--blue:#2563eb;--green:#16a34a;--red:#dc2626;--bg:#f1f5f9;--card:#fff;--text:#0f172a;--muted:#64748b;--border:#e2e8f0;--r:14px}
+:root{--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--bg:#0b1220;--card:#151d2e;--text:#e8eef9;--muted:#8b9bb4;--border:#243044;--r:16px}
 html,body{width:100%;height:100%;height:100dvh;overflow:hidden}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);-webkit-user-select:none;user-select:none}
 #app{width:100%;height:100%;height:100dvh;background:var(--bg);position:relative;display:flex;flex-direction:column;overflow:hidden}
 .hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--card);border-bottom:1px solid var(--border);min-height:54px;position:sticky;top:0;z-index:40}
 .hdr h1{font-size:17px;font-weight:700}
-.logo{font-size:19px;font-weight:800;color:var(--blue)}
+.logo{font-size:19px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:8px}
 .ibtn{width:38px;height:38px;border:none;background:var(--bg);border-radius:11px;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .tbtn{background:none;border:none;color:var(--blue);font-size:15px;font-weight:600;cursor:pointer}
 #screens{flex:1;position:relative;overflow:hidden}
@@ -24,16 +24,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .cats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:14px;background:var(--card)}
 .cat{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 2px;border-radius:12px;cursor:pointer;-webkit-user-select:none;user-select:none}
 .cat:active{background:var(--bg)}
-.cat i{width:50px;height:50px;background:#eff6ff;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px}
+.cat i{width:56px;height:56px;background:var(--card);border:1.5px solid var(--border);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--text)}
 .cat span{font-size:11px;font-weight:500;text-align:center}
 .sec{padding:14px 16px 0}.sec-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.sec-h h2{font-size:16px;font-weight:700}
 .list{display:flex;flex-direction:column;gap:10px;padding:0 14px 20px}
 .chat-tabs{display:flex;gap:8px;padding:10px 14px 4px;background:var(--bg)}
 .chat-tab{flex:1;padding:10px 12px;border:1.5px solid var(--border);border-radius:12px;background:var(--card);font-size:14px;font-weight:600;color:var(--muted);cursor:pointer}
-.chat-tab.on{background:#eff6ff;border-color:var(--blue);color:var(--blue)}
+.chat-tab.on{background:rgba(59,130,246,.15);border-color:var(--blue);color:var(--blue)}
 .chat-role{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:8px;margin-bottom:4px}
-.chat-role.buy{background:#eff6ff;color:var(--blue)}
-.chat-role.sell{background:#f0fdf4;color:var(--green)}
+.chat-role.buy{background:rgba(59,130,246,.15);color:var(--blue)}
+.chat-role.sell{background:rgba(34,197,94,.15);color:var(--green)}
 .card{background:var(--card);border-radius:var(--r);border:1px solid var(--border);overflow:hidden;cursor:pointer}
 .card:active{transform:scale(.985)}
 .card-b{display:flex;gap:12px;padding:12px}
@@ -68,7 +68,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   border-color:var(--red)!important;box-shadow:0 0 0 3px rgba(220,38,38,.15);
 }
 .fld.invalid > label{color:var(--red)}
-.upload.invalid{border-color:var(--red)!important;background:#fef2f2}
+.upload.invalid{border-color:var(--red)!important;background:rgba(239,68,68,.12)}
 
 
 .upload-wrap{margin:0;position:relative}
@@ -87,7 +87,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   overflow:hidden;clip:rect(0,0,0,0);border:0;
   opacity:0;pointer-events:none;
 }
-.upload-wrap.invalid .upload-btn{border-color:var(--red)!important;background:#fef2f2}
+.upload-wrap.invalid .upload-btn{border-color:var(--red)!important;background:rgba(239,68,68,.12)}
 
 .upload-hint{font-size:13px;color:var(--muted);margin-bottom:8px}
 .url-row{display:flex;gap:8px;align-items:center}
@@ -98,11 +98,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   display:block;width:100%;box-sizing:border-box;
   padding:16px 12px;font-size:16px;
   border:2px dashed var(--blue);border-radius:14px;
-  background:#eff6ff;color:var(--text);
+  background:rgba(59,130,246,.12);color:var(--text);
   cursor:pointer;
 }
-.file-native:active{background:#dbeafe}
-.upload-wrap.invalid .file-native{border-color:var(--red)!important;background:#fef2f2}
+.file-native:active{background:rgba(59,130,246,.2)}
+.upload-wrap.invalid .file-native{border-color:var(--red)!important;background:rgba(239,68,68,.12)}
 
 .upload-btn{
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
@@ -119,7 +119,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   border:1.5px solid var(--border);border-radius:12px;
   background:var(--card);font-size:14px;
 }
-.upload-wrap.invalid .upload-btn{border-color:var(--red)!important;background:#fef2f2}
+.upload-wrap.invalid .upload-btn{border-color:var(--red)!important;background:rgba(239,68,68,.12)}
 .upload{border:2px dashed var(--border);border-radius:14px;padding:18px;background:var(--card);text-align:center;cursor:pointer;position:relative;overflow:hidden}
 
 .upload:active{background:var(--bg)}.upload .big{font-size:30px}.upload p{font-size:13px;font-weight:600;margin-top:4px}.upload small{font-size:11px;color:var(--muted)}
@@ -136,23 +136,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .sheet-search input{flex:1;border:none;outline:none;font-size:15px;background:transparent}
 .sheet-list{flex:1;overflow-y:auto;padding:0 0 20px}
 .sheet-item{padding:14px 18px;border-bottom:1px solid var(--border);font-size:15px;cursor:pointer;background:var(--card);display:flex;align-items:center;gap:12px}
-.sheet-item:active{background:#eff6ff}
+.sheet-item:active{background:rgba(59,130,246,.12)}
 .sheet-item .cnt{margin-left:auto;font-size:12px;color:var(--muted)}
 .gen-item{padding:14px 18px;border-bottom:1px solid var(--border);background:var(--card);display:flex;align-items:center;gap:12px;cursor:pointer}
-.gen-item:active{background:#eff6ff}
+.gen-item:active{background:rgba(59,130,246,.12)}
 .gen-item img{display:none}
 .gen-item .gi{flex:1}.gen-item .gn{font-size:14px;font-weight:600}.gen-item .gy{font-size:12px;color:var(--muted)}
 .fbody{padding:14px;padding-bottom:120px;display:flex;flex-direction:column;gap:18px}
 .fg label{display:block;font-size:13px;font-weight:600;margin-bottom:8px}
 .chips{display:flex;flex-wrap:wrap;gap:7px}
 .chip{padding:8px 14px;border-radius:20px;border:1.5px solid var(--border);background:var(--card);font-size:13px;cursor:pointer}
-.chip.on{background:#eff6ff;border-color:var(--blue);color:var(--blue);font-weight:600}
+.chip.on{background:rgba(59,130,246,.15);border-color:var(--blue);color:var(--blue);font-weight:600}
 .rng{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .rng input{padding:11px;border:1.5px solid var(--border);border-radius:12px;font-size:14px;outline:none}
 .ffoot{padding:12px 14px;padding-bottom:max(12px,env(safe-area-inset-bottom));position:sticky;bottom:0;left:0;right:0;z-index:60;background:var(--card);border-top:1px solid var(--border);width:100%;margin-top:auto;box-shadow:0 -4px 16px rgba(0,0,0,.06);flex-shrink:0}
 .prof{padding:20px 14px}
 .pcard{background:var(--card);border-radius:var(--r);padding:22px;text-align:center;margin-bottom:14px;border:1px solid var(--border)}
-.av{width:64px;height:64px;background:#eff6ff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 10px}
+.av{width:64px;height:64px;background:rgba(59,130,246,.12);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 10px}
 .menu{background:var(--card);border-radius:var(--r);overflow:hidden;border:1px solid var(--border)}
 .mi{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);cursor:pointer;font-size:15px;font-weight:500}
 .mi:last-child{border-bottom:none}.mi:active{background:var(--bg)}
@@ -170,20 +170,56 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .lightbox .lb-nav{position:absolute;bottom:24px;display:flex;gap:16px}
 .lightbox .lb-nav button{width:44px;height:44px;border:none;background:rgba(255,255,255,.15);color:#fff;border-radius:50%;font-size:18px;cursor:pointer}
 .d-photo{cursor:pointer}
+
+.logo-badge{font-size:11px;font-weight:800;background:var(--blue);color:#fff;padding:2px 7px;border-radius:6px;letter-spacing:.3px}
+.count-pill{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:rgba(59,130,246,.2);color:var(--blue);font-size:12px;margin-left:6px;vertical-align:middle}
+.card{background:var(--card);border-radius:18px;overflow:hidden;border:1px solid var(--border);position:relative}
+.card-img{height:200px;background:#0a0f1a;display:flex;align-items:center;justify-content:center;font-size:48px;position:relative}
+.card-img img{width:100%;height:100%;object-fit:cover}
+.card-badge{position:absolute;top:12px;left:12px;background:rgba(15,23,42,.75);color:#fff;font-size:11px;font-weight:800;padding:5px 10px;border-radius:10px;letter-spacing:.4px;z-index:2}
+.card-heart{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;background:rgba(15,23,42,.55);border:none;color:#fff;font-size:16px;z-index:2;cursor:pointer}
+.card-i{padding:12px 14px 14px}
+.card-t{font-size:16px;font-weight:700;color:var(--text)}
+.card-m{font-size:13px;color:var(--muted);margin-top:4px}
+.card-p{font-size:17px;font-weight:800;color:var(--blue);margin-top:6px}
+.gen-carousel{position:fixed;inset:0;background:#0a0f1a;z-index:200;display:none;flex-direction:column}
+.gen-carousel.on{display:flex}
+.gen-carousel .gc-top{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;padding-top:max(14px,env(safe-area-inset-top))}
+.gen-carousel .gc-title{text-align:center;padding:8px 20px 0}
+.gen-carousel .gc-name{font-size:26px;font-weight:800;color:#fff}
+.gen-carousel .gc-years{font-size:15px;color:#8b9bb4;margin-top:6px}
+.gen-carousel .gc-track{flex:1;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.gen-carousel .gc-track::-webkit-scrollbar{display:none}
+.gen-carousel .gc-slide{min-width:100%;scroll-snap-align:center;display:flex;align-items:center;justify-content:center;padding:20px}
+.gen-carousel .gc-slide img{max-width:92%;max-height:48vh;object-fit:contain;border-radius:12px}
+.gen-carousel .gc-placeholder{width:70%;height:40vh;border-radius:16px;background:linear-gradient(145deg,#151d2e,#0d1422);border:1px solid #243044;display:flex;align-items:center;justify-content:center;font-size:64px;opacity:.5}
+.gen-carousel .gc-dots{display:flex;justify-content:center;gap:6px;padding:8px}
+.gen-carousel .gc-dot{width:7px;height:7px;border-radius:50%;background:#334155}
+.gen-carousel .gc-dot.on{background:#3b82f6;width:18px;border-radius:4px}
+.gen-carousel .gc-bot{padding:14px 16px max(16px,env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:10px}
+.gen-carousel .gc-bot .btn{border-radius:14px;padding:14px}
+
 </style>
 </head>
 <body>
 <div id="app">
 <div id="screens">
 <div class="scr on" id="home">
-  <div class="hdr"><div class="logo">Autokz</div><button class="ibtn" onclick="toast('Уведомления')">🔔</button></div>
+  <div class="hdr">
+    <div class="logo">Autokz <span class="logo-badge">KZ</span></div>
+    <div style="display:flex;gap:8px">
+      <button class="ibtn" onclick="toast('Уведомления')">🔔</button>
+      <button class="ibtn" onclick="go('filter')">⚙️</button>
+    </div>
+  </div>
+  <div class="search" style="margin-top:4px" onclick="openList('all')"><span style="opacity:.6">🔍</span><input placeholder="Марка, модель или кузов..." readonly style="pointer-events:none;color:var(--muted)"></div>
   <div class="cats">
-    <div class="cat" onclick="openList('all')"><i>🚗</i><span>Машины</span></div>
-    <div class="cat" onclick="openList('moto')"><i>🏍️</i><span>Мото</span></div>
+    <div class="cat" onclick="openList('all')"><i>🚗</i><span>Легковые</span></div>
+    <div class="cat" onclick="openList('moto')"><i>⚡</i><span>Мото</span></div>
     <div class="cat" onclick="openList('new')"><i>✨</i><span>Новые</span></div>
     <div class="cat" onclick="openList('comm')"><i>🚚</i><span>Коммерч.</span></div>
   </div>
-  <div class="sec"><div class="sec-h"><h2>Объявления</h2><button class="tbtn" onclick="openList('all')">Все →</button></div></div>
+  <div class="sec"><div class="sec-h"><h2>Объявления <span id="homeCount" class="count-pill">0</span></h2><button class="tbtn" onclick="openList('all')">Параметры ›</button></div></div>
   <div class="list" id="homeList"></div>
 </div>
 <div class="scr" id="list">
@@ -273,6 +309,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   <div class="sheet-hdr"><button class="ibtn" onclick="closeS('genSheet')">←</button><h2 id="genTitle">Поколение</h2></div>
   <div class="sheet-list" id="genList"></div>
 </div>
+<div class="gen-carousel" id="genCarousel">
+  <div class="gc-top">
+    <button class="ibtn" onclick="closeGenCarousel()" style="background:rgba(255,255,255,.08);border:none;color:#fff">←</button>
+    <span style="color:#8b9bb4;font-size:14px;font-weight:600" id="gcBrand">Поколение</span>
+    <span style="width:38px"></span>
+  </div>
+  <div class="gc-title">
+    <div class="gc-name" id="gcName">—</div>
+    <div class="gc-years" id="gcYears">—</div>
+  </div>
+  <div class="gc-track" id="gcTrack"></div>
+  <div class="gc-dots" id="gcDots"></div>
+  <div class="gc-bot">
+    <button type="button" class="btn btn-b btn-full" onclick="confirmGenCarousel()">Выбрать это поколение</button>
+    <button type="button" class="btn btn-full" style="background:transparent;color:var(--muted);border:1px solid var(--border)" onclick="pickGen(null);closeGenCarousel()">Не указывать</button>
+  </div>
+</div>
 <div class="scr" id="filter">
   <div class="hdr"><button class="ibtn" onclick="go('list')">✕</button><h1>Фильтр</h1><button class="tbtn" onclick="resetF()">Сбросить</button></div>
   <div class="fbody">
@@ -341,7 +394,7 @@ toast('Очищено')}">🗑 Очистить все данные</div>
   <div class="hdr"><button class="ibtn" onclick="go('msgs')">←</button><h1 id="chatTitle">Чат</h1></div>
   <div id="chatMsgs" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px"></div>
   <div style="display:flex;gap:8px;padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--border)">
-    <input id="chatInput" placeholder="Сообщение..." style="flex:1;padding:12px;border:1.5px solid var(--border);border-radius:12px;font-size:15px;outline:none">
+    <input id="chatInput" placeholder="Сообщение..." style="flex:1;padding:12px;border:1.5px solid var(--border);border-radius:12px;font-size:15px;outline:none;background:var(--bg);color:var(--text)">
     <button type="button" class="btn btn-b" style="flex:0;padding:12px 16px" onclick="sendChat()">➤</button>
   </div>
 </div>
@@ -394,8 +447,8 @@ try {
     tg.ready();
     tg.expand();
     try { if (tg.disableVerticalSwipes) tg.disableVerticalSwipes(); } catch(e) {}
-    try { if (tg.setHeaderColor) tg.setHeaderColor('#ffffff'); } catch(e) {}
-    try { if (tg.setBackgroundColor) tg.setBackgroundColor('#f1f5f9'); } catch(e) {}
+    try { if (tg.setHeaderColor) tg.setHeaderColor('#0b1220'); } catch(e) {}
+    try { if (tg.setBackgroundColor) tg.setBackgroundColor('#0b1220'); } catch(e) {}
     tgUser = (tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user : null;
   }
 } catch (e) { console.log('tg init', e); }
@@ -1333,16 +1386,28 @@ function nav(id){go(id)}
 function goBack(){go(prev)}
 
 function card(a){
-  const img=a.photos?.[0];
-  const meta=[a.eng?a.eng+' л':null,a.fuel,a.trans,a.color].filter(Boolean).join(' • ');
-  const sub=a.gen?` (${a.gen})`:'';
+  const img=a.photos&&a.photos[0];
   const idJs = JSON.stringify(a.id);
-  return `<div class="card" onclick='openDetail(${idJs})'><div class="card-b">
-    <div class="card-img">${img?`<img src="${img}">`:'🚗'}</div>
-    <div class="card-i"><div class="card-t">${a.title}${sub}, ${a.year}</div>
-    <div class="card-p">${money(a.price)}</div><div class="card-m">${meta}</div>
-    <div class="card-m">${a.city||''}</div></div></div>
-    <div class="card-f"><span>👁 ${a.views||0}</span><span>♡ ${a.likes||0}</span><span>${a.date||''}</span></div></div>`;
+  const isFav = favs.has(String(a.id)) || favs.has(a.id);
+  const top = (a.views||0) > 50 || a._top ? '<span class="card-badge">ТОП</span>' : '';
+  return `<div class="card" onclick='openDetail(${idJs})'>
+    <div class="card-img">${top}${img?`<img src="${img}" loading="lazy">`:'🚗'}
+      <button type="button" class="card-heart" onclick='event.stopPropagation();toggleFavCard(${idJs})'>${isFav?'❤️':'♡'}</button>
+    </div>
+    <div class="card-i">
+      <div class="card-t">${a.title||''}</div>
+      <div class="card-m">${a.city||''}${a.year?' · '+a.year+' г.':''}</div>
+      <div class="card-p">${money(a.price)}</div>
+    </div>
+  </div>`;
+}
+function toggleFavCard(id){
+  var key=String(id);
+  if(favs.has(key)||favs.has(id)){favs.delete(key);favs.delete(id);}
+  else favs.add(key);
+  save();
+  try{renderHome();}catch(e){}
+  try{renderFavs();}catch(e){}
 }
 
 function openMyAds(){
@@ -1362,7 +1427,7 @@ function openMyAds(){
       +'<div class="card-p">'+money(a.price)+'</div><div class="card-m">'+(a.city||'')+'</div></div></div>'
       +'<div class="card-f" style="justify-content:space-between;align-items:center">'
       +'<span>👁 '+(a.views||0)+' · ♡ '+(a.likes||0)+'</span>'
-      +'<button type="button" onclick=\'event.stopPropagation();deleteAd('+idJs+')\' style="background:#fee2e2;color:#dc2626;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600">🗑 Удалить</button>'
+      +'<button type="button" onclick=\'event.stopPropagation();deleteAd('+idJs+')\' style="background:rgba(239,68,68,.15);color:#dc2626;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600">🗑 Удалить</button>'
       +'</div></div>';
   }).join('');
   go('myads');
@@ -1437,9 +1502,36 @@ function renderChatMsgs(){
   var th=getThread(all, key);
   var list=th.msgs||[];
   var me = myId();
+  // подтянуть из облака (чтобы чат был виден с другого аккаунта)
+  try{
+    var client = initSupabase();
+    if(client && typeof client.from==='function' && chatListingId){
+      client.from('messages').select('*').eq('listing_id', chatListingId).order('id',{ascending:true}).limit(100)
+        .then(function(res){
+          if(res.error || !res.data || !res.data.length) return;
+          var remote = res.data.map(function(r){
+            return {from: r.from_id||'x', text: r.body||'', time: ''};
+          });
+          // смержить по тексту если локальных мало
+          if(remote.length > list.length){
+            th.msgs = remote;
+            setThread(all, key, th.role||detectChatRole(chatListingId), th.msgs);
+            saveChats(all);
+            var me2 = myId();
+            box.innerHTML = remote.map(function(m){
+              var mine = String(m.from)===String(me2);
+              return '<div style="align-self:'+(mine?'flex-end':'flex-start')+';max-width:80%;padding:10px 12px;border-radius:14px;background:'+(mine?'#2563eb':'#1e293b')+';color:#fff;font-size:14px">'+
+                escapeHtml(m.text)+
+                '<div style="font-size:10px;opacity:.7;margin-top:4px">'+escapeHtml(m.time||'')+'</div></div>';
+            }).join('');
+            box.scrollTop = box.scrollHeight;
+          }
+        }).catch(function(){});
+    }
+  }catch(e){}
   box.innerHTML = list.length ? list.map(function(m){
     var mine = String(m.from)===String(me);
-    return '<div style="align-self:'+(mine?'flex-end':'flex-start')+';max-width:80%;padding:10px 12px;border-radius:14px;background:'+(mine?'#2563eb':'#e2e8f0')+';color:'+(mine?'#fff':'#0f172a')+';font-size:14px">'+
+    return '<div style="align-self:'+(mine?'flex-end':'flex-start')+';max-width:80%;padding:10px 12px;border-radius:14px;background:'+(mine?'#2563eb':'#1e293b')+';color:#fff;font-size:14px">'+
       escapeHtml(m.text)+
       '<div style="font-size:10px;opacity:.7;margin-top:4px">'+escapeHtml(m.time||'')+'</div></div>';
   }).join('') : '<div class="empty" style="padding:30px"><p>Напишите первое сообщение</p></div>';
@@ -1537,7 +1629,10 @@ function openChatKey(k){
 
 function renderHome(){
   const el=document.getElementById('homeList');
-  const homeAds=ads.filter(a=>(a.cat||'cars')==='cars');el.innerHTML=homeAds.length?homeAds.slice(0,8).map(card).join(''):`<div class="empty"><div class="ic">🚗</div><p>Пока нет объявлений<br>Нажми + чтобы добавить</p></div>`;
+  const homeAds=ads.filter(a=>(a.cat||'cars')==='cars');
+  var cnt=document.getElementById('homeCount');
+  if(cnt) cnt.textContent=String(homeAds.length);
+  el.innerHTML=homeAds.length?homeAds.map(card).join(''):`<div class="empty"><div class="ic">🚗</div><p>Пока нет объявлений<br>Нажми + чтобы добавить</p></div>`;
 }
 function openList(cat){
   listCat=cat||'all';
@@ -1685,19 +1780,68 @@ function openGen(){
   window._pickMode='post';
   const gens=(CATALOG[selBrand]&&CATALOG[selBrand][selModel])||[];
   if(!gens.length){toast('Для этой модели поколения не добавлены');return}
-  document.getElementById('genTitle').textContent=selBrand+' '+selModel;
-  document.getElementById('genList').innerHTML=
-    '<div class="gen-item" onclick="pickGen(null)"><div class="gi"><div class="gn">Не указывать</div></div></div>'+
-    gens.map(function(g,i){
-      return '<div class="gen-item" onclick="pickGen('+i+')"><div class="gi"><div class="gn">'+g.n+'</div><div class="gy">'+g.y+'</div></div></div>';
-    }).join('');
-  document.getElementById('genSheet').classList.add('on');
+  openGenCarousel(gens, selBrand+' '+selModel, false);
 }
 function pickGen(i){
   if(i===null){selGen=null;document.getElementById('genVal').textContent='Не указано';document.getElementById('genVal').className='ph'}
   else{selGen=CATALOG[selBrand][selModel][i];document.getElementById('genVal').textContent=selGen.n+' ('+selGen.y+')';document.getElementById('genVal').className='val'}
   closeS('genSheet');
 }
+var _gcGens=[], _gcIdx=0, _gcFilter=false;
+function openGenCarousel(gens, title, isFilter){
+  _gcGens = gens || [];
+  _gcIdx = 0;
+  _gcFilter = !!isFilter;
+  var el = document.getElementById('genCarousel');
+  if(!el){ /* fallback sheet */
+    document.getElementById('genTitle').textContent=title;
+    document.getElementById('genList').innerHTML=
+      '<div class="gen-item" onclick="pickGen(null)"><div class="gi"><div class="gn">Не указывать</div></div></div>'+
+      _gcGens.map(function(g,i){ return '<div class="gen-item" onclick="pickGen('+i+')"><div class="gi"><div class="gn">'+g.n+'</div><div class="gy">'+g.y+'</div></div></div>'; }).join('');
+    document.getElementById('genSheet').classList.add('on');
+    return;
+  }
+  document.getElementById('gcBrand').textContent = title || 'Поколение';
+  var track = document.getElementById('gcTrack');
+  var dots = document.getElementById('gcDots');
+  track.innerHTML = _gcGens.map(function(g,i){
+    var img = g.p ? '<img src="'+g.p+'" alt="">' : '<div class="gc-placeholder">🚗</div>';
+    return '<div class="gc-slide" data-i="'+i+'">'+img+'</div>';
+  }).join('');
+  dots.innerHTML = _gcGens.map(function(_,i){ return '<div class="gc-dot'+(i===0?' on':'')+'"></div>'; }).join('');
+  updateGcHeader(0);
+  el.classList.add('on');
+  track.scrollLeft = 0;
+  track.onscroll = function(){
+    var w = track.clientWidth || 1;
+    var i = Math.round(track.scrollLeft / w);
+    if(i < 0) i = 0;
+    if(i >= _gcGens.length) i = _gcGens.length-1;
+    if(i !== _gcIdx){ _gcIdx = i; updateGcHeader(i); }
+  };
+}
+function updateGcHeader(i){
+  _gcIdx = i;
+  var g = _gcGens[i];
+  if(!g) return;
+  document.getElementById('gcName').textContent = g.n || '—';
+  document.getElementById('gcYears').textContent = g.y || '';
+  var dots = document.querySelectorAll('#gcDots .gc-dot');
+  dots.forEach(function(d, di){ d.classList.toggle('on', di===i); });
+}
+function closeGenCarousel(){
+  var el = document.getElementById('genCarousel');
+  if(el) el.classList.remove('on');
+}
+function confirmGenCarousel(){
+  if(_gcFilter){
+    pickFilterGen(_gcIdx);
+  } else {
+    pickGen(_gcIdx);
+  }
+  closeGenCarousel();
+}
+
 function closeS(id){var el=document.getElementById(id);if(el)el.classList.remove('on');try{saveDraft()}catch(e){}}
 
 function resetForm(){
@@ -1918,18 +2062,13 @@ function openFilterGen(){
   const gens=(CATALOG[fBrand]&&CATALOG[fBrand][fModel])||[];
   if(!gens.length){toast('Поколения не добавлены');return}
   window._pickMode='filter';
-  document.getElementById('genTitle').textContent=fBrand+' '+fModel;
-  document.getElementById('genList').innerHTML=
-    '<div class="gen-item" onclick="pickFilterGen(null)"><div class="gi"><div class="gn">Любое</div></div></div>'+
-    gens.map(function(g,i){
-      return '<div class="gen-item" onclick="pickFilterGen('+i+')"><div class="gi"><div class="gn">'+g.n+'</div><div class="gy">'+g.y+'</div></div></div>';
-    }).join('');
-  document.getElementById('genSheet').classList.add('on');
+  openGenCarousel(gens, fBrand+' '+fModel, true);
 }
 function pickFilterGen(i){
   if(i===null){fGen='';document.getElementById('fGenVal').textContent='Любое';document.getElementById('fGenVal').className='ph'}
   else{const g=CATALOG[fBrand][fModel][i];fGen=g.n;document.getElementById('fGenVal').textContent=g.n+' ('+g.y+')';document.getElementById('fGenVal').className='val'}
   closeS('genSheet');
+  closeGenCarousel();
 }
 
 
