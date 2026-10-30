@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>АвтоМаркет</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:rgba(0,0,0,0.1);touch-action:manipulation}
 :root{--blue:#2563eb;--green:#16a34a;--red:#dc2626;--bg:#f1f5f9;--card:#fff;--text:#0f172a;--muted:#64748b;--border:#e2e8f0;--r:14px}
@@ -368,9 +368,10 @@ toast('Очищено')}">🗑 Очистить все данные</div>
 // ===== Telegram Mini App + Supabase =====
 var tg = null;
 var tgUser = null;
-var supabase = null;
+// НЕ называть переменную supabase — CDN кладёт библиотеку в window.supabase
+var sbClient = null;
 
-// !!! ВСТАВЬ СВОИ ДАННЫЕ SUPABASE (пока можно оставить как есть — кнопки работают и без них) !!!
+// !!! ВСТАВЬ СВОИ ДАННЫЕ SUPABASE !!!
 var SUPABASE_URL = 'https://pukrwdarrlmzkuufwayr.supabase.co';
 var SUPABASE_KEY = 'sb_publishable_ni-4OiknHS9Om_Y55TPkEw_yHkP4ESy';
 
@@ -389,11 +390,17 @@ try {
   }
 } catch (e) { console.log('tg init', e); }
 
-try {
-  if (window.supabase && SUPABASE_URL && SUPABASE_URL.indexOf('ВАШ_') === -1 && SUPABASE_KEY && SUPABASE_KEY.indexOf('ВАШ_') === -1) {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  }
-} catch (e) { console.log('supabase init', e); }
+function initSupabase(){
+  try {
+    if (sbClient) return sbClient;
+    var lib = window.supabase;
+    if (lib && typeof lib.createClient === 'function' && SUPABASE_URL && SUPABASE_URL.indexOf('ВАШ_') === -1 && SUPABASE_KEY && SUPABASE_KEY.indexOf('ВАШ_') === -1) {
+      sbClient = lib.createClient(SUPABASE_URL, SUPABASE_KEY);
+    }
+  } catch (e) { console.log('supabase init', e); }
+  return sbClient;
+}
+initSupabase();
 
 function tgAlert(msg){
   try {
@@ -411,8 +418,8 @@ function saveUserToDatabase() {
       if (nameEl) nameEl.textContent = tgUser.first_name || tgUser.username || 'Пользователь';
       if (subEl) subEl.textContent = tgUser.username ? ('@' + tgUser.username) : ('ID: ' + tgUser.id);
     }
-    if (!supabase || !tgUser) return;
-    supabase.from('users').upsert({
+    if (!initSupabase() || !tgUser || typeof sbClient.from !== 'function') return;
+    sbClient.from('users').upsert({
       telegram_id: tgUser.id,
       username: tgUser.username || '',
       first_name: tgUser.first_name || '',
@@ -1168,23 +1175,24 @@ function formatDate(iso){
 
 async function loadAdsFromCloud(){
   var localOnly = (ads||[]).filter(function(a){ return a && a._local; });
-  if(!supabase){
+  var client = initSupabase();
+  if(!client || typeof client.from !== 'function'){
     try{
       var cached=JSON.parse(localStorage.getItem('am_ads')||'[]');
-      ads = cached.concat(localOnly.filter(function(l){ return !cached.some(function(c){return c.id===l.id}); }));
+      ads = cached.concat(localOnly.filter(function(l){ return !cached.some(function(c){return String(c.id)===String(l.id)}); }));
     }catch(e){ ads=localOnly; }
     try{ renderHome(); }catch(e){}
     return;
   }
   try{
-    var res = await supabase.from('listings').select('*').order('created_at', {ascending:false}).limit(200);
+    var res = await client.from('listings').select('*').order('created_at', {ascending:false}).limit(200);
     if(res.error){
       console.error('load ads', res.error);
       try{ ads=JSON.parse(localStorage.getItem('am_ads')||'[]'); }catch(e){ ads=ads||[]; }
     } else {
       var cloud = (res.data||[]).map(rowToAd).filter(Boolean);
       localOnly.forEach(function(l){
-        if(!cloud.some(function(c){ return c.id===l.id; })) cloud.unshift(l);
+        if(!cloud.some(function(c){ return String(c.id)===String(l.id); })) cloud.unshift(l);
       });
       ads = cloud;
     }
@@ -1195,12 +1203,20 @@ async function loadAdsFromCloud(){
   try{ renderHome(); }catch(e){}
 }
 
+function withTimeout(promise, ms){
+  return Promise.race([
+    promise,
+    new Promise(function(_, rej){ setTimeout(function(){ rej(new Error('timeout '+ms+'ms')); }, ms); })
+  ]);
+}
+
 async function publishToCloud(ad){
-  if(!supabase){
+  var client = initSupabase();
+  if(!client || typeof client.from !== 'function'){
     return {ok:true, local:true};
   }
-  function rowOf(photos, includeId){
-    var row = {
+  function rowOf(photos){
+    return {
       owner_telegram_id: ad.owner_telegram_id || myTelegramId || (tgUser && tgUser.id) || null,
       title: ad.title,
       year: ad.year,
@@ -1220,34 +1236,37 @@ async function publishToCloud(ad){
       likes: 0,
       cat: ad.cat || 'cars'
     };
-    // id только если таблица ждёт числовой id; для uuid лучше не слать
-    if(includeId && ad.id != null) row.id = ad.id;
-    return row;
   }
-  // максимум 2 сжатых фото в облако (base64 тяжелый)
-  var cloudPhotos = (ad.photos||[]).slice(0, 2);
   try{
-    // 1) без id — пусть БД сама сгенерирует (uuid / serial)
-    var res = await supabase.from('listings').insert([rowOf(cloudPhotos, false)]).select('*').limit(1);
+    // сначала без фото — быстро; фото base64 часто ломает/тормозит
+    var res = await withTimeout(
+      client.from('listings').insert([rowOf([])]).select('*').limit(1),
+      8000
+    );
     if(res.error){
-      // 2) retry без фото
-      var res2 = await supabase.from('listings').insert([rowOf([], false)]).select('*').limit(1);
-      if(res2.error){
-        // 3) retry со старым числовым id (на случай если id = bigint)
-        var res3 = await supabase.from('listings').insert([rowOf([], true)]).select('*').limit(1);
-        if(res3.error) return {ok:false, error: res3.error.message || res2.error.message || String(res3.error)};
-        return {ok:true, noPhotos:true, row: (res3.data && res3.data[0]) || null};
-      }
-      return {ok:true, noPhotos:true, row: (res2.data && res2.data[0]) || null};
+      return {ok:false, error: res.error.message || String(res.error)};
     }
-    return {ok:true, row: (res.data && res.data[0]) || null};
+    var row = (res.data && res.data[0]) || null;
+    // если есть фото — пробуем обновить в фоне (не блокируем)
+    var onePhoto = (ad.photos||[])[0];
+    if(row && row.id != null && onePhoto){
+      try{
+        withTimeout(
+          client.from('listings').update({photos: [onePhoto]}).eq('id', row.id),
+          10000
+        ).then(function(){}).catch(function(){});
+      }catch(e){}
+    }
+    return {ok:true, row: row};
   }catch(e){
     return {ok:false, error: e.message||String(e)};
   }
 }
 
 async function deleteFromCloud(id){
-  if(!supabase){
+  var client = initSupabase();
+  if(!client || typeof client.from !== 'function'){
+    // только локально
     ads = (ads||[]).filter(function(a){ return String(a.id) !== String(id); });
     try{ localStorage.setItem('am_ads', JSON.stringify(ads.map(function(a){
       var x={}; for(var k in a) if(k!=='photos') x[k]=a[k];
@@ -1257,14 +1276,16 @@ async function deleteFromCloud(id){
     return true;
   }
   try{
-    // пробуем и число, и строку (uuid)
-    var res = await supabase.from('listings').delete().eq('id', id);
+    var res = await withTimeout(client.from('listings').delete().eq('id', id), 8000);
     if(res.error){
-      var res2 = await supabase.from('listings').delete().eq('id', String(id));
+      var res2 = await withTimeout(client.from('listings').delete().eq('id', String(id)), 5000);
       if(res2.error){
+        // всё равно убираем локально, чтобы UI не «залипал»
         console.error(res.error, res2.error);
-        toast('Не удалось удалить: ' + (res2.error.message || res.error.message || 'ошибка'));
-        return false;
+        ads = (ads||[]).filter(function(a){ return String(a.id) !== String(id); });
+        try{ localStorage.setItem('am_ads', JSON.stringify(ads)); }catch(e){}
+        toast('Удалено локально. Облако: ' + (res2.error.message || res.error.message || 'нет прав'));
+        return true;
       }
     }
     ads = (ads||[]).filter(function(a){ return String(a.id) !== String(id); });
@@ -1277,8 +1298,11 @@ async function deleteFromCloud(id){
     }catch(e){}
     return true;
   }catch(e){
-    toast('Ошибка удаления: ' + (e.message||e));
-    return false;
+    // таймаут / сеть — удаляем локально
+    ads = (ads||[]).filter(function(a){ return String(a.id) !== String(id); });
+    try{ localStorage.setItem('am_ads', JSON.stringify(ads)); }catch(err){}
+    toast('Удалено локально (' + (e.message||e) + ')');
+    return true;
   }
 }
 
@@ -1391,8 +1415,8 @@ function sendChat(){
   if(inp) inp.value='';
   renderChatMsgs();
   // пробуем в supabase
-  if(supabase){
-    supabase.from('messages').insert([{
+  if(initSupabase()){
+    sbClient.from('messages').insert([{
       listing_id: chatListingId,
       from_id: me==='me'?null:me,
       to_id: chatPeer==='seller'?null:chatPeer,
@@ -1747,38 +1771,33 @@ function publish(){
 
     go('home');
     try { renderHome(); } catch(e) { console.error(e); }
+    toast('Объявление опубликовано');
 
+    // облако — в фоне, не блокирует UI
     if(typeof publishToCloud === 'function'){
-      toast('Публикуем…');
       publishToCloud(ad).then(function(r){
         if(r && r.ok && !r.local){
           ad._local = false;
           if(r.row && r.row.id != null){
-            // подменяем локальный id на id из БД, чтобы удаление работало
             var oldId = ad.id;
             ad.id = r.row.id;
             if(r.row.photos && r.row.photos.length) ad.photos = r.row.photos;
-            // обновить в массиве ads
             for(var i=0;i<(ads||[]).length;i++){
               if(ads[i] && String(ads[i].id)===String(oldId)){ ads[i]=ad; break; }
             }
+            try{
+              var light = (ads||[]).map(function(a){
+                var x={}; for(var k in a) if(k!=='photos') x[k]=a[k];
+                x.photos = (a.photos&&a.photos[0]) ? [String(a.photos[0]).slice(0,200000)] : [];
+                return x;
+              });
+              localStorage.setItem('am_ads', JSON.stringify(light));
+            }catch(e){}
           }
-          try{ renderHome(); }catch(e){}
-          if(r.noPhotos) toast('Опубликовано (без фото — слишком большие)');
-          else toast('Опубликовано — видно всем');
-        } else if(r && r.local){
-          toast('Сохранено локально (нет облака)');
-        } else {
-          var msg = (r && r.error) ? r.error : 'ошибка синхронизации';
-          toast('Локально сохранено. Облако: ' + msg);
-          console.error('publishToCloud', r);
+        } else if(r && !r.ok && r.error){
+          console.error('publishToCloud', r.error);
         }
-      }).catch(function(err){
-        toast('Локально сохранено. Облако недоступно');
-        console.error(err);
-      });
-    } else {
-      toast('Объявление сохранено локально');
+      }).catch(function(err){ console.error(err); });
     }
   } catch(err) {
     alert('Ошибка: ' + (err && err.message ? err.message : err));
