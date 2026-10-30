@@ -208,7 +208,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   </div>
 </div>
 <div class="scr" id="post">
-  <div class="hdr"><button class="ibtn" onclick="go('home')">✕</button><h1>Новое объявление</h1><button class="tbtn" onclick="publish()">Опубликовать</button></div>
+  <div class="hdr"><button class="ibtn" onclick="go('home')">✕</button><h1>Новое объявление</h1><button type="button" class="tbtn" id="btnPublish" onclick="publish();return false;">Опубликовать</button></div>
   <div class="form">
     <div class="fld"><label>Фотографии <span class="r">*</span></label>
       <div class="upload-wrap" id="uploadBox">
@@ -225,7 +225,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     <div class="fld"><label>Модель <span class="r">*</span></label><button type="button" class="pick-btn" onclick="openModel();return false;"><span id="modelVal" class="ph">Сначала марку</span><span class="arr">›</span></button></div>
     <div class="fld"><label>Поколение / кузов</label><button type="button" class="pick-btn" onclick="openGen();return false;"><span id="genVal" class="ph">Опционально</span><span class="arr">›</span></button></div>
     <div class="row2">
-      <div class="fld"><label>Год <span class="r">*</span></label><input type="number" id="fYear" placeholder="2015" min="1980" max="2026"></div>
+      <div class="fld"><label>Год <span class="r">*</span></label><input type="number" id="fYear" placeholder="2015" min="1980" max="2030"></div>
       <div class="fld"><label>Цена, ₸ <span class="r">*</span></label><input type="number" id="fPrice" placeholder="5000000"></div>
     </div>
     <div class="fld"><label>Город <span class="r">*</span></label>
@@ -279,7 +279,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     <div class="fld"><label>Поколение / кузов</label>
       <button type="button" class="pick-btn" onclick="openFilterGen()"><span id="fGenVal" class="ph">Любое</span><span class="arr">›</span></button>
     </div>
-    <div class="fg"><label>Год</label><div class="rng"><input type="number" id="yF" placeholder="От" min="1980" max="2026"><input type="number" id="yT" placeholder="До" min="1980" max="2026"></div></div>
+    <div class="fg"><label>Год</label><div class="rng"><input type="number" id="yF" placeholder="От" min="1980" max="2030"><input type="number" id="yT" placeholder="До" min="1980" max="2030"></div></div>
     <div class="fg"><label>Цена, ₸</label><div class="rng"><input type="number" id="pF" placeholder="От"><input type="number" id="pT" placeholder="До"></div></div>
     <div class="fg"><label>Объём двигателя, л</label><div class="rng"><input type="number" id="eF" placeholder="От" step="0.1" min="0"><input type="number" id="eT" placeholder="До" step="0.1" min="0"></div></div>
     <div class="fg"><label>Топливо</label><div class="chips" id="cFuel">
@@ -1164,27 +1164,32 @@ function formatDate(iso){
 }
 
 async function loadAdsFromCloud(){
+  var localOnly = (ads||[]).filter(function(a){ return a && a._local; });
   if(!supabase){
-    // без supabase — локальный кэш (только этот телефон)
-    try{ ads=JSON.parse(localStorage.getItem('am_ads')||'[]'); }catch(e){ ads=[]; }
-    renderHome();
+    try{
+      var cached=JSON.parse(localStorage.getItem('am_ads')||'[]');
+      ads = cached.concat(localOnly.filter(function(l){ return !cached.some(function(c){return c.id===l.id}); }));
+    }catch(e){ ads=localOnly; }
+    try{ renderHome(); }catch(e){}
     return;
   }
   try{
     var res = await supabase.from('listings').select('*').order('created_at', {ascending:false}).limit(200);
     if(res.error){
       console.error('load ads', res.error);
-      toast('Не удалось загрузить объявления');
-      try{ ads=JSON.parse(localStorage.getItem('am_ads')||'[]'); }catch(e){ ads=[]; }
+      try{ ads=JSON.parse(localStorage.getItem('am_ads')||'[]'); }catch(e){ ads=ads||[]; }
     } else {
-      ads = (res.data||[]).map(rowToAd).filter(Boolean);
-      try{ localStorage.setItem('am_ads', JSON.stringify(ads.map(function(a){ var c=Object.assign({},a); if(c.photos) c.photos=c.photos.slice(0,1); return c; }))); }catch(e){}
+      var cloud = (res.data||[]).map(rowToAd).filter(Boolean);
+      localOnly.forEach(function(l){
+        if(!cloud.some(function(c){ return c.id===l.id; })) cloud.unshift(l);
+      });
+      ads = cloud;
     }
   }catch(e){
     console.error(e);
-    try{ ads=JSON.parse(localStorage.getItem('am_ads')||'[]'); }catch(e2){ ads=[]; }
+    try{ ads=JSON.parse(localStorage.getItem('am_ads')||'[]'); }catch(e2){}
   }
-  renderHome();
+  try{ renderHome(); }catch(e){}
 }
 
 async function publishToCloud(ad){
@@ -1551,47 +1556,18 @@ function onPh(e){
   var ub=document.getElementById('uploadBox'); if(ub) ub.classList.remove('invalid');
   var pe=document.getElementById('phErr'); if(pe) pe.style.display='none';
   var files = e.target && e.target.files;
-  if(!files || !files.length){ toast('Файл не получен'); return; }
-  toast('Загрузка фото...');
-  var pending = files.length;
+  if(!files || !files.length) return;
   for(var i=0;i<files.length;i++){
     (function(file){
       var reader = new FileReader();
       reader.onload = function(ev){
-        var data = ev.target.result;
-        // лёгкое сжатие через image, если возможно
-        shrinkDataUrl(data, function(out){
-          photos.push(out || data);
-          drawPrevs();
-          try{ saveDraft(); }catch(err){}
-          pending--;
-          if(pending<=0) toast('Фото добавлено: '+photos.length);
-        });
+        photos.push(ev.target.result);
+        drawPrevs();
       };
-      reader.onerror = function(){ pending--; toast('Ошибка чтения фото'); };
       reader.readAsDataURL(file);
     })(files[i]);
   }
-  setTimeout(function(){ try{ e.target.value=''; }catch(err){} }, 500);
-}
-function shrinkDataUrl(dataUrl, cb){
-  try{
-    var img = new Image();
-    img.onload = function(){
-      try{
-        var MAX=1280, w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
-        var k=Math.min(1, MAX/Math.max(w,h));
-        var cv=document.createElement('canvas');
-        cv.width=Math.max(1,Math.round(w*k)); cv.height=Math.max(1,Math.round(h*k));
-        cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
-        var out=cv.toDataURL('image/jpeg',0.7);
-        cv.width=cv.height=0;
-        cb(out);
-      }catch(e){ cb(dataUrl); }
-    };
-    img.onerror = function(){ cb(dataUrl); };
-    img.src = dataUrl;
-  }catch(e){ cb(dataUrl); }
+  try{ e.target.value=''; }catch(err){}
 }
 function drawPrevs(){
   var pe=document.getElementById('phErr'); if(pe) pe.style.display='none';
@@ -1601,7 +1577,7 @@ function drawPrevs(){
     return '<div class="prev"><img src="'+s+'"><button type="button" class="rm" onclick="rmPh('+i+')">×</button></div>';
   }).join('');
 }
-function rmPh(i){ photos.splice(i,1); drawPrevs(); try{saveDraft()}catch(e){} }
+function rmPh(i){ photos.splice(i,1); drawPrevs(); }
 
 
 
@@ -1619,63 +1595,77 @@ function markInvalid(idOrEl){
   if(fld) fld.classList.add('invalid');
 }
 function publish(){
-  try{ clearInvalid(); }catch(e){}
-  var yearEl=document.getElementById('fYear');
-  var priceEl=document.getElementById('fPrice');
-  var cityEl=document.getElementById('fCity');
-  var year=+yearEl.value, price=+priceEl.value, city=cityEl.value;
-  var ok=true, firstBad=null;
+  try {
+    var yearEl=document.getElementById('fYear');
+    var priceEl=document.getElementById('fPrice');
+    var cityEl=document.getElementById('fCity');
+    var year = yearEl && yearEl.value ? +yearEl.value : new Date().getFullYear();
+    var price = priceEl && priceEl.value ? +priceEl.value : 0;
+    var city = (cityEl && cityEl.value) ? cityEl.value : '';
 
-  if(!selBrand){ markInvalid('brandVal'); ok=false; if(!firstBad) firstBad=document.getElementById('brandVal'); }
-  if(!selModel){ markInvalid('modelVal'); ok=false; if(!firstBad) firstBad=document.getElementById('modelVal'); }
-  if(!year || year<1980 || year>new Date().getFullYear()){ markInvalid(yearEl); ok=false; if(!firstBad) firstBad=yearEl; }
-  if(!price || price<=0){ markInvalid(priceEl); ok=false; if(!firstBad) firstBad=priceEl; }
-  if(!city){ markInvalid(cityEl); ok=false; if(!firstBad) firstBad=cityEl; }
+    var missing = [];
+    if(!selBrand) missing.push('марка');
+    if(!selModel) missing.push('модель');
+    if(!price || price<=0) missing.push('цена');
+    if(!city) missing.push('город');
+    if(year && (year<1950 || year>2030)) missing.push('год');
 
-  if(!ok){
-    toast('Заполните поля, отмеченные красным');
-    try{ if(firstBad && firstBad.scrollIntoView) firstBad.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
-    return;
-  }
+    if(missing.length){
+      alert('Заполните: ' + missing.join(', '));
+      return;
+    }
 
-  var ad = {
-    id: Date.now(),
-    title: selBrand+' '+selModel,
-    year: year, price: price, city: city,
-    gen: selGen ? selGen.n : null,
-    color: (document.getElementById('fColor')||{}).value || null,
-    eng: ((document.getElementById('fEng')||{}).value||'').trim() || null,
-    fuel: (document.getElementById('fFuel')||{}).value,
-    trans: (document.getElementById('fTrans')||{}).value,
-    drive: (document.getElementById('fDrive')||{}).value,
-    mile: +(document.getElementById('fMile')||{}).value || null,
-    comp: ((document.getElementById('fComp')||{}).value||'').trim(),
-    desc: ((document.getElementById('fDesc')||{}).value||'').trim(),
-    photos: (photos||[]).slice(),
-    views: 0, likes: 0, date: 'только что', cat: 'cars',
-    owner_telegram_id: myTelegramId || (tgUser && tgUser.id) || null
-  };
+    var ad = {
+      id: Date.now(),
+      title: selBrand + ' ' + selModel,
+      year: year,
+      price: price,
+      city: city,
+      gen: selGen ? selGen.n : null,
+      color: (document.getElementById('fColor')||{}).value || null,
+      eng: ((document.getElementById('fEng')||{}).value||'').trim() || null,
+      fuel: (document.getElementById('fFuel')||{}).value || 'Бензин',
+      trans: (document.getElementById('fTrans')||{}).value || 'Автомат',
+      drive: (document.getElementById('fDrive')||{}).value || 'Передний',
+      mile: +(document.getElementById('fMile')||{}).value || null,
+      comp: ((document.getElementById('fComp')||{}).value||'').trim(),
+      desc: ((document.getElementById('fDesc')||{}).value||'').trim(),
+      photos: (photos||[]).slice(0, 5),
+      views: 0, likes: 0, date: 'только что', cat: 'cars',
+      owner_telegram_id: (typeof myTelegramId!=='undefined' && myTelegramId) || (tgUser && tgUser.id) || null,
+      _local: true
+    };
 
-  // всегда сначала локально — объявление точно появится у тебя
-  ads.unshift(ad);
-  try{ localStorage.setItem('am_ads', JSON.stringify(ads)); }catch(e){}
-  try{ clearDraft(); }catch(e){}
-  photos=[]; try{ drawPrevs(); resetForm(); }catch(e){}
+    if(!Array.isArray(ads)) ads = [];
+    ads.unshift(ad);
 
-  toast('Опубликовано');
-  go('home');
-  renderHome();
+    try {
+      // без тяжёлых фото в localStorage — квота
+      var light = ads.map(function(a){
+        var x={}; for(var k in a) if(k!=='photos') x[k]=a[k];
+        x.photos = (a.photos&&a.photos[0]) ? [a.photos[0].slice(0,500000)] : [];
+        return x;
+      });
+      localStorage.setItem('am_ads', JSON.stringify(light));
+    } catch(e) {}
 
-  // параллельно в облако (чтобы видели другие)
-  if(typeof publishToCloud === 'function'){
-    publishToCloud(ad).then(function(r){
-      if(r && r.ok && !r.local){
-        loadAdsFromCloud();
-      } else if(r && !r.ok){
-        console.error('cloud publish', r.error);
-        // уже сохранено локально — не пугаем сильно
-      }
-    }).catch(function(err){ console.error(err); });
+    photos = [];
+    try { drawPrevs(); } catch(e) {}
+    try { resetForm(); } catch(e) {}
+
+    go('home');
+    try { renderHome(); } catch(e) { console.error(e); }
+    alert('Объявление опубликовано');
+
+    if(typeof publishToCloud === 'function'){
+      publishToCloud(ad).then(function(r){
+        if(r && r.ok && !r.local){
+          ad._local = false;
+        }
+      }).catch(function(){});
+    }
+  } catch(err) {
+    alert('Ошибка: ' + (err && err.message ? err.message : err));
   }
 }
 
