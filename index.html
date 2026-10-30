@@ -37,7 +37,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .card{background:var(--card);border-radius:var(--r);border:1px solid var(--border);overflow:hidden;cursor:pointer}
 .card:active{transform:scale(.985)}
 .card-b{display:flex;gap:12px;padding:12px}
-.card-img{width:106px;height:80px;border-radius:10px;background:#e2e8f0;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:28px;overflow:hidden}
+.card-img{width:100%;height:220px;border-radius:0;background:#0a101c;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:28px;overflow:hidden;position:relative}
 .card-img img{width:100%;height:100%;object-fit:cover}
 .card-i{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between}
 .card-t{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -174,7 +174,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .logo-badge{font-size:11px;font-weight:800;background:var(--blue);color:#fff;padding:2px 7px;border-radius:6px;letter-spacing:.3px}
 .count-pill{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:rgba(59,130,246,.2);color:var(--blue);font-size:12px;margin-left:6px;vertical-align:middle}
 .card{background:var(--card);border-radius:18px;overflow:hidden;border:1px solid var(--border);position:relative}
-.card-img{height:200px;background:#0a0f1a;display:flex;align-items:center;justify-content:center;font-size:48px;position:relative}
+.card-img{width:100%;height:220px;background:#0a0f1a;display:flex;align-items:center;justify-content:center;font-size:48px;position:relative}
 .card-img img{width:100%;height:100%;object-fit:cover}
 .card-badge{position:absolute;top:12px;left:12px;background:rgba(15,23,42,.75);color:#fff;font-size:11px;font-weight:800;padding:5px 10px;border-radius:10px;letter-spacing:.4px;z-index:2}
 .card-heart{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;background:rgba(15,23,42,.55);border:none;color:#fff;font-size:16px;z-index:2;cursor:pointer}
@@ -222,7 +222,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .nb{color:#6b7a94}.nb.on{color:var(--blue)}
 .np{background:var(--blue);box-shadow:0 6px 20px rgba(37,99,235,.5)}
 .card{background:var(--card);border-radius:18px;border:1px solid var(--border);overflow:hidden}
-.card-img{height:210px;background:#0a101c}
+.card-img{width:100%;height:220px;background:#0a101c}
 .sec-h h2{font-size:17px;font-weight:700}
 
 </style>
@@ -235,7 +235,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     <div class="brand-row">
       <div class="brand-av">A</div>
       <div>
-        <div class="brand-name">Autokz <span class="logo-badge">KZ</span></div>
+        <div class="brand-name">Autokz</div>
         <div class="brand-sub">мини-приложение</div>
       </div>
     </div>
@@ -250,11 +250,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     <div class="cat" onclick="openList('moto')"><i class="ci">⚡</i><span>Мото</span></div>
     <div class="cat" onclick="openList('new')"><i class="ci">✨</i><span>Новые</span></div>
     <div class="cat" onclick="openList('comm')"><i class="ci">🚚</i><span>Коммерч.</span></div>
-  </div>
-  <div class="filter-chips" id="homeChips">
-    <span class="chip-label">Фильтры:</span>
-    <span class="fchip">Алматы ×</span>
-    <span class="fchip">Все года ×</span>
   </div>
   <div class="sec"><div class="sec-h"><h2>Объявления <span id="homeCount" class="count-pill">0</span></h2><button class="tbtn" onclick="go('filter')">Параметры ›</button></div></div>
   <div class="list" id="homeList"></div>
@@ -1427,13 +1422,16 @@ function card(a){
   const idJs = JSON.stringify(a.id);
   const isFav = favs.has(String(a.id)) || favs.has(a.id);
   const top = (a.views||0) > 50 || a._top ? '<span class="card-badge">ТОП</span>' : '';
+  const specs = [a.eng ? (String(a.eng).replace(/\s*л\.?$/i,'')+' л') : null, a.drive || null, a.trans || null].filter(Boolean).join(' · ');
+  const loc = [a.city||null, a.year ? (a.year+' г.') : null].filter(Boolean).join(' · ');
   return `<div class="card" onclick='openDetail(${idJs})'>
     <div class="card-img">${top}${img?`<img src="${img}" loading="lazy">`:'🚗'}
       <button type="button" class="card-heart" onclick='event.stopPropagation();toggleFavCard(${idJs})'>${isFav?'❤️':'♡'}</button>
     </div>
     <div class="card-i">
       <div class="card-t">${a.title||''}</div>
-      <div class="card-m">${a.city||''}${a.year?' · '+a.year+' г.':''}</div>
+      <div class="card-m">${loc}</div>
+      ${specs ? `<div class="card-m">${specs}</div>` : ''}
       <div class="card-p">${money(a.price)}</div>
     </div>
   </div>`;
