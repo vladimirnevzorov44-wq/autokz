@@ -77,9 +77,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .upload-title{font-size:15px;font-weight:700;color:var(--blue)}
 .upload-sub{font-size:12px;color:var(--muted)}
 #phInForm{
-  position:absolute;left:0;top:0;right:0;bottom:0;width:100%;height:100%;
-  opacity:0.01;font-size:20px;cursor:pointer;z-index:5;
-  -webkit-appearance:none;
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip:rect(0,0,0,0);border:0;
+  opacity:0;pointer-events:none;
 }
 .upload-wrap.invalid .upload-btn{border-color:var(--red)!important;background:#fef2f2}
 
@@ -212,11 +212,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   <div class="form">
     <div class="fld"><label>Фотографии <span class="r">*</span></label>
       <div class="upload-wrap" id="uploadBox">
-        <div class="upload-btn" aria-hidden="true">
+        <label class="upload-btn" for="phInForm">
           <span class="big">📷</span>
           <span class="upload-title">Добавить фото</span>
           <span class="upload-sub">Нажмите · выберите из галереи</span>
-        </div>
+        </label>
         <input type="file" id="phInForm" accept="image/*" multiple aria-label="Выбрать фото">
       </div>
       <div class="prevs" id="prevs"></div><div class="err" id="phErr">Добавьте хотя бы одно фото</div>
@@ -1121,6 +1121,9 @@ Object.entries(EXTRA_MODELS).forEach(([brand,list])=>{
 let ads=[];
 let favs=new Set(JSON.parse(localStorage.getItem('am_favs')||'[]'));
 let myTelegramId = null;
+let photos = [];
+let selBrand = '', selModel = '', selGen = null;
+let fBrand = '', fModel = '', fGen = '';
 
 function save(){
   // избранное по-прежнему локально
@@ -1550,21 +1553,55 @@ function resetForm(){
 function bindPhotoPicker(){
   var inp=document.getElementById('phInForm');
   if(!inp) return;
-  inp.onchange = onPh;
+  inp.onchange = null;
+  inp.removeEventListener('change', onPh);
+  inp.addEventListener('change', onPh);
+}
+function compressImage(file, maxSide, quality, cb){
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    var img = new Image();
+    img.onload = function(){
+      var w = img.width, h = img.height;
+      if(w > maxSide || h > maxSide){
+        if(w > h){ h = Math.round(h * maxSide / w); w = maxSide; }
+        else { w = Math.round(w * maxSide / h); h = maxSide; }
+      }
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      try {
+        var data = canvas.toDataURL('image/jpeg', quality);
+        cb(data);
+      } catch(err){ cb(ev.target.result); }
+    };
+    img.onerror = function(){ cb(ev.target.result); };
+    img.src = ev.target.result;
+  };
+  reader.onerror = function(){ cb(null); };
+  reader.readAsDataURL(file);
 }
 function onPh(e){
   var ub=document.getElementById('uploadBox'); if(ub) ub.classList.remove('invalid');
   var pe=document.getElementById('phErr'); if(pe) pe.style.display='none';
   var files = e.target && e.target.files;
   if(!files || !files.length) return;
-  for(var i=0;i<files.length;i++){
+  var added = 0;
+  var total = Math.min(files.length, 8 - photos.length);
+  if(total <= 0){ toast('Максимум 8 фото'); try{ e.target.value=''; }catch(err){} return; }
+  for(var i=0;i<total;i++){
     (function(file){
-      var reader = new FileReader();
-      reader.onload = function(ev){
-        photos.push(ev.target.result);
-        drawPrevs();
-      };
-      reader.readAsDataURL(file);
+      if(!file.type || file.type.indexOf('image/') !== 0) return;
+      compressImage(file, 1280, 0.72, function(dataUrl){
+        if(dataUrl){
+          photos.push(dataUrl);
+          drawPrevs();
+          added++;
+          if(added === 1) toast('Фото добавлено');
+          try{ saveDraft(); }catch(err){}
+        }
+      });
     })(files[i]);
   }
   try{ e.target.value=''; }catch(err){}
@@ -1577,7 +1614,7 @@ function drawPrevs(){
     return '<div class="prev"><img src="'+s+'"><button type="button" class="rm" onclick="rmPh('+i+')">×</button></div>';
   }).join('');
 }
-function rmPh(i){ photos.splice(i,1); drawPrevs(); }
+function rmPh(i){ photos.splice(i,1); drawPrevs(); try{saveDraft()}catch(e){} }
 
 
 
@@ -1789,10 +1826,35 @@ function restoreDraft(){
 document.addEventListener('input',function(e){ if(e.target && DRAFT_IDS.indexOf(e.target.id)>-1) saveDraft(); });
 document.addEventListener('change',function(e){ if(e.target && DRAFT_IDS.indexOf(e.target.id)>-1) saveDraft(); });
 
+// Enter / Return → следующее поле формы
+(function(){
+  var formOrder = ['fYear','fPrice','fCity','fColor','fEng','fFuel','fTrans','fDrive','fMile','fComp','fDesc'];
+  document.addEventListener('keydown', function(e){
+    if(e.key !== 'Enter' && e.keyCode !== 13) return;
+    var t = e.target;
+    if(!t || !t.id) return;
+    var idx = formOrder.indexOf(t.id);
+    if(idx < 0) return;
+    // в textarea Enter = новая строка (кроме Ctrl/Cmd+Enter — перейти дальше)
+    if((t.tagName === 'TEXTAREA') && !e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    var nextId = formOrder[idx + 1];
+    if(nextId){
+      var next = document.getElementById(nextId);
+      if(next){ next.focus(); if(next.select && next.tagName === 'INPUT') try{ next.select(); }catch(err){} }
+    } else {
+      try{ t.blur(); }catch(err){}
+    }
+  });
+})();
+
 (function(){
   var inp=document.getElementById('phInForm'); if(!inp) return;
-  function mark(){ try{ saveDraft(); var d=JSON.parse(localStorage.getItem(DRAFT_KEY)); d.resume=true; d.t=Date.now(); localStorage.setItem(DRAFT_KEY,JSON.stringify(d)); }catch(e){} }
+  function mark(){ try{ saveDraft(); var d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'{}'); d.resume=true; d.t=Date.now(); localStorage.setItem(DRAFT_KEY,JSON.stringify(d)); }catch(e){} }
   inp.addEventListener('click',mark); inp.addEventListener('touchstart',mark,{passive:true});
+  // label click also marks
+  var lab = document.querySelector('label[for="phInForm"]');
+  if(lab){ lab.addEventListener('click',mark); lab.addEventListener('touchstart',mark,{passive:true}); }
 })();
 // iOS touch fix: ensure taps on divs work
 document.addEventListener('touchstart', function(){}, {passive:true});
