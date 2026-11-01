@@ -278,7 +278,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   </div>
   <div class="d-btns">
     <button class="btn btn-b" type="button" onclick="startChat(curId)">💬 Написать</button>
-    <button class="btn btn-g" onclick="toast('Звонок (демо)')">📞 Позвонить</button>
+    <button class="btn btn-g" type="button" onclick="openCallMenu()">📞 Позвонить</button>
   </div>
 </div>
 <div class="scr" id="post">
@@ -324,6 +324,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
       <div class="fld"><label>Пробег, км</label><input type="number" id="fMile" placeholder="120000"></div>
     </div>
     <div class="fld"><label>Комплектация</label><textarea id="fComp" rows="2" placeholder="Кожа, панорама, камеры..."></textarea></div>
+    <div class="fld"><label>Телефон <span class="r">*</span></label>
+      <input type="tel" id="fPhone" placeholder="+7 700 123 45 67" inputmode="tel" autocomplete="tel">
+    </div>
+    <div class="fld"><label>Telegram (username без @)</label>
+      <input type="text" id="fTg" placeholder="username" autocomplete="username">
+      <small style="color:var(--muted);font-size:11px">Нужен для звонка/чата в Telegram</small>
+    </div>
     <div class="fld"><label>Описание</label><textarea id="fDesc" rows="3" placeholder="Состояние, нюансы..."></textarea></div>
   </div>
 </div>
@@ -442,6 +449,18 @@ toast('Очищено')}">🗑 Очистить все данные</div>
   </div>
 </div>
 </div>
+
+<div class="sheet" id="callSheet" style="background:transparent;justify-content:flex-end">
+  <div onclick="closeS('callSheet')" style="flex:1"></div>
+  <div style="background:var(--card);border-radius:18px 18px 0 0;padding:8px 14px 20px;padding-bottom:max(20px,env(safe-area-inset-bottom));box-shadow:0 -8px 30px rgba(0,0,0,.15)">
+    <div style="width:40px;height:4px;background:var(--border);border-radius:4px;margin:8px auto 16px"></div>
+    <div style="font-size:16px;font-weight:700;margin-bottom:12px;text-align:center">Как позвонить?</div>
+    <button type="button" class="btn btn-b btn-full" style="margin-bottom:8px" onclick="callViaTelegram()">✈️ Telegram</button>
+    <button type="button" class="btn btn-g btn-full" style="margin-bottom:8px" onclick="callViaMobile()">📱 Мобильный</button>
+    <button type="button" class="btn btn-full" style="background:var(--bg);color:var(--text)" onclick="closeS('callSheet')">Отмена</button>
+  </div>
+</div>
+
 <div class="lightbox" id="lightbox" onclick="closeLb(event)">
   <button class="lb-close" onclick="closeLb()">✕</button>
   <img id="lbImg" src="" alt="">
@@ -1254,7 +1273,10 @@ function rowToAd(row){
     likes: row.likes || 0,
     date: row.created_at ? formatDate(row.created_at) : (row.date || ''),
     cat: row.cat || 'cars',
-    owner_telegram_id: row.owner_telegram_id || null
+    owner_telegram_id: row.owner_telegram_id || null,
+    phone: row.phone || null,
+    tg: row.tg || row.owner_username || null,
+    owner_username: row.owner_username || null
   };
 }
 function formatDate(iso){
@@ -1333,7 +1355,10 @@ async function publishToCloud(ad){
       photos: photos || [],
       views: 0,
       likes: 0,
-      cat: ad.cat || 'cars'
+      cat: ad.cat || 'cars',
+      phone: ad.phone || null,
+      tg: ad.tg || null,
+      owner_username: ad.owner_username || null
     };
   }
   try{
@@ -1513,6 +1538,64 @@ function getThread(all, key){
 function setThread(all, key, role, msgs){
   all[key] = {role: role || (all[key] && all[key].role) || null, msgs: msgs};
 }
+
+function openCallMenu(){
+  var a = ads.find(function(x){ return String(x.id)===String(curId); });
+  if(!a){ alert('Объявление не найдено'); return; }
+  window._callAd = a;
+  var hasPhone = !!(a.phone && String(a.phone).replace(/\D/g,'').length>=10);
+  var hasTg = !!(a.tg || a.owner_username);
+  if(!hasPhone && !hasTg){
+    alert('Продавец не указал телефон и Telegram');
+    return;
+  }
+  // if only one option — go directly
+  if(hasPhone && !hasTg){ callViaMobile(); return; }
+  if(hasTg && !hasPhone){ callViaTelegram(); return; }
+  document.getElementById('callSheet').classList.add('on');
+}
+function normalizePhone(p){
+  var d = String(p||'').replace(/\D/g,'');
+  if(d.length===10) d='7'+d;
+  if(d.indexOf('8')===0 && d.length===11) d='7'+d.slice(1);
+  return d;
+}
+function callViaMobile(){
+  closeS('callSheet');
+  var a = window._callAd || ads.find(function(x){ return String(x.id)===String(curId); });
+  if(!a || !a.phone){ alert('Номер не указан'); return; }
+  var d = normalizePhone(a.phone);
+  if(d.length<11){ alert('Некорректный номер'); return; }
+  // реальный звонок через системный dialer
+  window.location.href = 'tel:+'+d;
+}
+function callViaTelegram(){
+  closeS('callSheet');
+  var a = window._callAd || ads.find(function(x){ return String(x.id)===String(curId); });
+  if(!a){ alert('Объявление не найдено'); return; }
+  var u = (a.tg || a.owner_username || '').replace(/^@/,'');
+  if(u){
+    // открыть профиль в Telegram — оттуда можно позвонить (если есть Premium/разрешено)
+    var url = 'https://t.me/'+encodeURIComponent(u);
+    if(window.Telegram && Telegram.WebApp && Telegram.WebApp.openTelegramLink){
+      try{ Telegram.WebApp.openTelegramLink(url); return; }catch(e){}
+    }
+    window.open(url, '_blank');
+    return;
+  }
+  // fallback по номеру
+  if(a.phone){
+    var d = normalizePhone(a.phone);
+    var url2 = 'https://t.me/+'+d;
+    if(window.Telegram && Telegram.WebApp && Telegram.WebApp.openTelegramLink){
+      try{ Telegram.WebApp.openTelegramLink(url2); return; }catch(e){}
+    }
+    window.open(url2, '_blank');
+    return;
+  }
+  alert('Telegram не указан');
+}
+
 function startChat(listingId){
   var ad = ads.find(function(a){ return String(a.id)===String(listingId); });
   if(!ad){ toast('Объявление не найдено'); return; }
@@ -1940,7 +2023,7 @@ function resetForm(){
   document.getElementById('brandVal').textContent='Выберите марку';document.getElementById('brandVal').className='ph';
   document.getElementById('modelVal').textContent='Сначала марку';document.getElementById('modelVal').className='ph';
   document.getElementById('genVal').textContent='Опционально';document.getElementById('genVal').className='ph';
-  ['fYear','fPrice','fEng','fMile','fComp','fDesc'].forEach(id=>document.getElementById(id).value='');
+  ['fYear','fPrice','fEng','fMile','fComp','fDesc','fPhone','fTg'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('fCity').value='';document.getElementById('fColor').value='';
   document.getElementById('fFuel').value='Бензин';document.getElementById('fTrans').value='Автомат';document.getElementById('fDrive').value='Полный';
   document.getElementById('prevs').innerHTML='';document.getElementById('phErr').style.display='none';
@@ -2040,6 +2123,8 @@ function publish(){
     if(!selModel) missing.push('модель');
     if(!price || price<=0) missing.push('цена');
     if(!city) missing.push('город');
+    var phoneVal=((document.getElementById('fPhone')||{}).value||'').trim();
+    if(!phoneVal) missing.push('телефон');
     if(year && (year<1950 || year>2030)) missing.push('год');
 
     if(missing.length){
@@ -2065,6 +2150,9 @@ function publish(){
       photos: (photos||[]).slice(0, 5),
       views: 0, likes: 0, date: 'только что', cat: 'cars',
       owner_telegram_id: (typeof myTelegramId!=='undefined' && myTelegramId) || (tgUser && tgUser.id) || null,
+      phone: ((document.getElementById('fPhone')||{}).value||'').trim() || null,
+      tg: ((document.getElementById('fTg')||{}).value||'').replace(/^@/,'').trim() || (tgUser && tgUser.username) || null,
+      owner_username: (tgUser && tgUser.username) || null,
       _local: true
     };
 
@@ -2209,7 +2297,7 @@ function lbNext(){if(!lbPhotos.length)return;lbIdx=(lbIdx+1)%lbPhotos.length;doc
 // ===== Черновик объявления: если Telegram перезагрузит мини-приложение
 // при открытии галереи, форма и выбранные фото восстановятся =====
 var DRAFT_KEY='am_draft';
-var DRAFT_IDS=['fYear','fPrice','fCity','fColor','fEng','fFuel','fTrans','fDrive','fMile','fComp','fDesc'];
+var DRAFT_IDS=['fYear','fPrice','fCity','fColor','fEng','fFuel','fTrans','fDrive','fMile','fComp','fDesc','fPhone','fTg'];
 function saveDraft(){
   try{
     var d={t:Date.now(),f:{},selBrand:selBrand,selModel:selModel,selGen:selGen,photos:photos,
